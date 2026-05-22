@@ -37,6 +37,9 @@ export default function ReceptenLijst() {
   const [actieveCategorieen, setActieveCategorieen] = useState<string[]>([])
   const [laden, setLaden] = useState(true)
   const [fout, setFout] = useState('')
+  const [paginaNr, setPaginaNr] = useState(1)
+
+  const PAGINA_GROOTTE = 25
 
   useEffect(() => {
     async function laadData() {
@@ -87,12 +90,14 @@ export default function ReceptenLijst() {
   }, [])
 
   function toggleCategorie(id: string) {
+    setPaginaNr(1)
     setActieveCategorieen(prev =>
       prev.includes(id) ? prev.filter(c => c !== id) : [...prev, id]
     )
   }
 
   function wisFilters() {
+    setPaginaNr(1)
     setActieveCategorieen([])
     setZoekterm('')
   }
@@ -106,6 +111,22 @@ export default function ReceptenLijst() {
       r.categorieen.some(c => actieveCategorieen.includes(c.id))
     return naamMatch && catMatch
   })
+
+  const aantalPaginas = Math.max(1, Math.ceil(gefilterd.length / PAGINA_GROOTTE))
+  const huidigePagina = Math.min(paginaNr, aantalPaginas)
+  const gepagineerd = gefilterd.slice((huidigePagina - 1) * PAGINA_GROOTTE, huidigePagina * PAGINA_GROOTTE)
+
+  function paginaNummers(): (number | '…')[] {
+    if (aantalPaginas <= 7) return Array.from({ length: aantalPaginas }, (_, i) => i + 1)
+    const items: (number | '…')[] = [1]
+    if (huidigePagina > 3) items.push('…')
+    for (let p = Math.max(2, huidigePagina - 1); p <= Math.min(aantalPaginas - 1, huidigePagina + 1); p++) {
+      items.push(p)
+    }
+    if (huidigePagina < aantalPaginas - 2) items.push('…')
+    items.push(aantalPaginas)
+    return items
+  }
 
   return (
     <div>
@@ -138,7 +159,7 @@ export default function ReceptenLijst() {
           className="input pl-10"
           placeholder="Zoek op naam…"
           value={zoekterm}
-          onChange={e => setZoekterm(e.target.value)}
+          onChange={e => { setZoekterm(e.target.value); setPaginaNr(1) }}
         />
         {zoekterm && (
           <button
@@ -239,7 +260,7 @@ export default function ReceptenLijst() {
       {/* Receptenlijst */}
       {!laden && !fout && gefilterd.length > 0 && (
         <div className="space-y-2">
-          {gefilterd.map(recept => (
+          {gepagineerd.map(recept => (
             <Link
               key={recept.id}
               href={`/recepten/${recept.id}`}
@@ -289,11 +310,54 @@ export default function ReceptenLijst() {
         </div>
       )}
 
-      {/* Teller */}
-      {!laden && !fout && recepten.length > 0 && (
-        <p className="text-xs text-slate-400 text-center mt-5">
-          {gefilterd.length} van {recepten.length} {recepten.length === 1 ? 'recept' : 'recepten'}
-        </p>
+      {/* Paginering + teller */}
+      {!laden && !fout && gefilterd.length > 0 && (
+        <div className="mt-5 flex flex-col items-center gap-3">
+          {aantalPaginas > 1 && (
+            <div className="flex items-center gap-1">
+              <button
+                onClick={() => setPaginaNr(p => Math.max(1, p - 1))}
+                disabled={huidigePagina === 1}
+                className="px-3 py-1.5 rounded-lg text-sm text-slate-500 hover:text-slate-900 hover:bg-slate-100 disabled:opacity-30 disabled:pointer-events-none transition-colors"
+              >
+                ← Vorige
+              </button>
+
+              {paginaNummers().map((item, i) =>
+                item === '…' ? (
+                  <span key={`ellipsis-${i}`} className="px-2 text-slate-300 text-sm select-none">…</span>
+                ) : (
+                  <button
+                    key={item}
+                    onClick={() => setPaginaNr(item)}
+                    className={`w-8 h-8 rounded-lg text-sm font-medium transition-colors ${
+                      item === huidigePagina
+                        ? 'bg-primary-500 text-white'
+                        : 'text-slate-600 hover:bg-slate-100'
+                    }`}
+                  >
+                    {item}
+                  </button>
+                )
+              )}
+
+              <button
+                onClick={() => setPaginaNr(p => Math.min(aantalPaginas, p + 1))}
+                disabled={huidigePagina === aantalPaginas}
+                className="px-3 py-1.5 rounded-lg text-sm text-slate-500 hover:text-slate-900 hover:bg-slate-100 disabled:opacity-30 disabled:pointer-events-none transition-colors"
+              >
+                Volgende →
+              </button>
+            </div>
+          )}
+
+          <p className="text-xs text-slate-400">
+            {gefilterd.length === recepten.length
+              ? `${recepten.length} recepten`
+              : `${gefilterd.length} van ${recepten.length} recepten`}
+            {aantalPaginas > 1 && ` · pagina ${huidigePagina} van ${aantalPaginas}`}
+          </p>
+        </div>
       )}
     </div>
   )
