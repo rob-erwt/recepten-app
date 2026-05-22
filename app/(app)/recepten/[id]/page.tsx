@@ -123,14 +123,6 @@ export default async function ReceptDetailPage({ params }: { params: { id: strin
         </div>
       )}
 
-      {/* Weekmenu-kiezer */}
-      {gebruiker?.huishouden_id && (
-        <ReceptWeekMenuKiezer
-          receptId={recept.id}
-          huishoudenId={gebruiker.huishouden_id}
-        />
-      )}
-
       {/* Ingrediënten */}
       {ingredienten.length > 0 && (
         <div className="card p-5 mb-4">
@@ -175,6 +167,16 @@ export default async function ReceptDetailPage({ params }: { params: { id: strin
             Voeg ze toe
           </Link>
           .
+        </div>
+      )}
+
+      {/* Weekmenu-kiezer */}
+      {gebruiker?.huishouden_id && (
+        <div className="mt-4">
+          <ReceptWeekMenuKiezer
+            receptId={recept.id}
+            huishoudenId={gebruiker.huishouden_id}
+          />
         </div>
       )}
     </div>
