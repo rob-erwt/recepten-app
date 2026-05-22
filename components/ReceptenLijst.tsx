@@ -43,48 +43,52 @@ export default function ReceptenLijst() {
 
   useEffect(() => {
     async function laadData() {
-      const supabase = createClient()
+      try {
+        const supabase = createClient()
 
-      // Categorieën en recepten parallel ophalen
-      const [catResult, recResult] = await Promise.all([
-        supabase
-          .from('categorieen')
-          .select('id, naam, volgorde, huishouden_id')
-          .order('volgorde'),
-        supabase
-          .from('recepten')
-          .select(`
-            id, naam, beschrijving, aantal_personen, bereidingstijd_min, foto_url,
-            recept_categorieen (
-              categorieen (id, naam)
-            )
-          `)
-          .order('naam'),
-      ])
+        // Categorieën en recepten parallel ophalen
+        const [catResult, recResult] = await Promise.all([
+          supabase
+            .from('categorieen')
+            .select('id, naam, volgorde, huishouden_id')
+            .order('volgorde'),
+          supabase
+            .from('recepten')
+            .select(`
+              id, naam, beschrijving, aantal_personen, bereidingstijd_min, foto_url,
+              recept_categorieen (
+                categorieen (id, naam)
+              )
+            `)
+            .order('naam'),
+        ])
 
-      if (recResult.error) {
+        if (recResult.error) {
+          setFout('Recepten konden niet worden geladen.')
+        } else {
+          // Supabase geeft geneste join terug: vlak maken naar categorieen[]
+          const gemapt: ReceptKaart[] = (recResult.data ?? []).map(r => ({
+            id: r.id,
+            naam: r.naam,
+            beschrijving: r.beschrijving,
+            aantal_personen: r.aantal_personen,
+            bereidingstijd_min: r.bereidingstijd_min,
+            foto_url: r.foto_url,
+            categorieen: ((r.recept_categorieen ?? []) as unknown as { categorieen: { id: string; naam: string } | null }[])
+              .map(rc => rc.categorieen)
+              .filter(Boolean) as { id: string; naam: string }[],
+          }))
+          setRecepten(gemapt)
+        }
+
+        if (!catResult.error) {
+          setCategorieen(catResult.data ?? [])
+        }
+      } catch {
         setFout('Recepten konden niet worden geladen.')
-      } else {
-        // Supabase geeft geneste join terug: vlak maken naar categorieen[]
-        const gemapt: ReceptKaart[] = (recResult.data ?? []).map(r => ({
-          id: r.id,
-          naam: r.naam,
-          beschrijving: r.beschrijving,
-          aantal_personen: r.aantal_personen,
-          bereidingstijd_min: r.bereidingstijd_min,
-          foto_url: r.foto_url,
-          categorieen: ((r.recept_categorieen ?? []) as unknown as { categorieen: { id: string; naam: string } | null }[])
-            .map(rc => rc.categorieen)
-            .filter(Boolean) as { id: string; naam: string }[],
-        }))
-        setRecepten(gemapt)
+      } finally {
+        setLaden(false)
       }
-
-      if (!catResult.error) {
-        setCategorieen(catResult.data ?? [])
-      }
-
-      setLaden(false)
     }
     laadData()
   }, [])
