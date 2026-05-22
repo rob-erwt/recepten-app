@@ -47,6 +47,13 @@ export type ReceptKaart = {
   categorieen: Pick<Categorie, 'id' | 'naam'>[]
 }
 
+export type WeekMenuEntry = {
+  id: string
+  datum: string   // YYYY-MM-DD
+  recept_id: string | null
+  recept: Pick<ReceptKaart, 'id' | 'naam' | 'foto_url' | 'bereidingstijd_min'> | null
+}
+
 // Formulier-types (zonder DB-ids)
 export type IngredientInvoer = {
   naam: string

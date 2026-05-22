@@ -70,8 +70,8 @@ export default function ReceptenLijst() {
           aantal_personen: r.aantal_personen,
           bereidingstijd_min: r.bereidingstijd_min,
           foto_url: r.foto_url,
-          categorieen: (r.recept_categorieen ?? [])
-            .map((rc: { categorieen: { id: string; naam: string } | null }) => rc.categorieen)
+          categorieen: ((r.recept_categorieen ?? []) as unknown as { categorieen: { id: string; naam: string } | null }[])
+            .map(rc => rc.categorieen)
             .filter(Boolean) as { id: string; naam: string }[],
         }))
         setRecepten(gemapt)

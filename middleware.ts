@@ -12,7 +12,7 @@ export async function middleware(request: NextRequest) {
         getAll() {
           return request.cookies.getAll()
         },
-        setAll(cookiesToSet) {
+        setAll(cookiesToSet: { name: string; value: string; options?: object }[]) {
           cookiesToSet.forEach(({ name, value }) =>
             request.cookies.set(name, value)
           )
@@ -29,7 +29,7 @@ export async function middleware(request: NextRequest) {
 
   const { pathname } = request.nextUrl
   const isAuthRoute = pathname.startsWith('/login') || pathname.startsWith('/register')
-  const isProtectedRoute = pathname.startsWith('/recepten')
+  const isProtectedRoute = pathname.startsWith('/recepten') || pathname.startsWith('/weekmenu')
 
   if (!user && isProtectedRoute) {
     return NextResponse.redirect(new URL('/login', request.url))
