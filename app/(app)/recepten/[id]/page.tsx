@@ -3,12 +3,19 @@ import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
 import VerwijderKnop from '@/components/VerwijderKnop'
 import FotoLightbox from '@/components/FotoLightbox'
+import ReceptWeekMenuKiezer from '@/components/ReceptWeekMenuKiezer'
 
 export default async function ReceptDetailPage({ params }: { params: { id: string } }) {
   const supabase = createClient()
   const { data: { user } } = await supabase.auth.getUser()
 
   if (!user) redirect('/login')
+
+  const { data: gebruiker } = await supabase
+    .from('gebruikers')
+    .select('huishouden_id')
+    .eq('id', user.id)
+    .single()
 
   const { data: recept } = await supabase
     .from('recepten')
@@ -114,6 +121,14 @@ export default async function ReceptDetailPage({ params }: { params: { id: strin
             </div>
           )}
         </div>
+      )}
+
+      {/* Weekmenu-kiezer */}
+      {gebruiker?.huishouden_id && (
+        <ReceptWeekMenuKiezer
+          receptId={recept.id}
+          huishoudenId={gebruiker.huishouden_id}
+        />
       )}
 
       {/* Ingrediënten */}
