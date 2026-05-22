@@ -2,37 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
-
-// ─── Datum-helpers (zelfde logica als WeekMenuOverzicht) ──────────────────────
-
-function datumString(d: Date): string {
-  const j = d.getFullYear()
-  const m = String(d.getMonth() + 1).padStart(2, '0')
-  const dag = String(d.getDate()).padStart(2, '0')
-  return `${j}-${m}-${dag}`
-}
-
-function startVanWeek(offset: number): Date {
-  const vandaag = new Date()
-  const dagVdWeek = vandaag.getDay()
-  const diffNaarZa = dagVdWeek === 6 ? 0 : -(dagVdWeek + 1)
-  const za = new Date(vandaag)
-  za.setDate(vandaag.getDate() + diffNaarZa + offset * 7)
-  za.setHours(0, 0, 0, 0)
-  return za
-}
-
-function weekLabel(offset: number): string {
-  if (offset === -1) return 'Vorige week'
-  if (offset === 0)  return 'Deze week'
-  if (offset === 1)  return 'Volgende week'
-  const start = startVanWeek(offset)
-  const eind  = new Date(start)
-  eind.setDate(start.getDate() + 6)
-  return `${start.toLocaleDateString('nl-NL', { day: 'numeric', month: 'short' })} – ${eind.toLocaleDateString('nl-NL', { day: 'numeric', month: 'short' })}`
-}
-
-const DAG_KORT = ['Za', 'Zo', 'Ma', 'Di', 'Wo', 'Do', 'Vr']
+import { datumString, startVanWeek, weekLabel, DAG_KORT } from '@/lib/week'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 

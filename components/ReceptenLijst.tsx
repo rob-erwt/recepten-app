@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import type { ReceptKaart, Categorie } from '@/lib/types'
+import { PAGINA_GROOTTE, paginaNummers } from '@/lib/paginering'
 
 function TijdBadge({ minuten }: { minuten: number }) {
   const uur = Math.floor(minuten / 60)
@@ -38,8 +39,6 @@ export default function ReceptenLijst() {
   const [laden, setLaden] = useState(true)
   const [fout, setFout] = useState('')
   const [paginaNr, setPaginaNr] = useState(1)
-
-  const PAGINA_GROOTTE = 25
 
   useEffect(() => {
     async function laadData() {
@@ -119,18 +118,6 @@ export default function ReceptenLijst() {
   const aantalPaginas = Math.max(1, Math.ceil(gefilterd.length / PAGINA_GROOTTE))
   const huidigePagina = Math.min(paginaNr, aantalPaginas)
   const gepagineerd = gefilterd.slice((huidigePagina - 1) * PAGINA_GROOTTE, huidigePagina * PAGINA_GROOTTE)
-
-  function paginaNummers(): (number | '…')[] {
-    if (aantalPaginas <= 7) return Array.from({ length: aantalPaginas }, (_, i) => i + 1)
-    const items: (number | '…')[] = [1]
-    if (huidigePagina > 3) items.push('…')
-    for (let p = Math.max(2, huidigePagina - 1); p <= Math.min(aantalPaginas - 1, huidigePagina + 1); p++) {
-      items.push(p)
-    }
-    if (huidigePagina < aantalPaginas - 2) items.push('…')
-    items.push(aantalPaginas)
-    return items
-  }
 
   return (
     <div>
@@ -327,7 +314,7 @@ export default function ReceptenLijst() {
                 ← Vorige
               </button>
 
-              {paginaNummers().map((item, i) =>
+              {paginaNummers(aantalPaginas, huidigePagina).map((item, i) =>
                 item === '…' ? (
                   <span key={`ellipsis-${i}`} className="px-2 text-slate-300 text-sm select-none">…</span>
                 ) : (

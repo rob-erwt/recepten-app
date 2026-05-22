@@ -4,28 +4,7 @@ import { useState, useEffect, useRef } from 'react'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import type { ReceptKaart, WeekMenuEntry } from '@/lib/types'
-
-// ─── Datum-helpers ────────────────────────────────────────────────────────────
-
-function datumString(d: Date): string {
-  const j = d.getFullYear()
-  const m = String(d.getMonth() + 1).padStart(2, '0')
-  const dag = String(d.getDate()).padStart(2, '0')
-  return `${j}-${m}-${dag}`
-}
-
-/** Geeft de zaterdag van de week, verschoven met `offset` weken */
-function startVanWeek(offset: number): Date {
-  const vandaag = new Date()
-  const dagVdWeek = vandaag.getDay() // 0=zo, 6=za
-  const diffNaarZa = dagVdWeek === 6 ? 0 : -(dagVdWeek + 1)
-  const za = new Date(vandaag)
-  za.setDate(vandaag.getDate() + diffNaarZa + offset * 7)
-  za.setHours(0, 0, 0, 0)
-  return za
-}
-
-const DAGNAMEN = ['Zaterdag', 'Zondag', 'Maandag', 'Dinsdag', 'Woensdag', 'Donderdag', 'Vrijdag']
+import { datumString, startVanWeek, DAGNAMEN } from '@/lib/week'
 
 // ─── Component ────────────────────────────────────────────────────────────────
 

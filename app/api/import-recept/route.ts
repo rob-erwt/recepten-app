@@ -1,130 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import type { ReceptInvoer } from '@/lib/types'
-
-// ── Helpers: tekstvelden ─────────────────────────────────────
-
-function parseIsoDuration(iso: string | undefined): string {
-  if (!iso) return ''
-  const match = iso.match(/PT(?:(\d+)H)?(?:(\d+)M)?/)
-  if (!match) return ''
-  const uren = parseInt(match[1] ?? '0')
-  const minuten = parseInt(match[2] ?? '0')
-  const totaal = uren * 60 + minuten
-  return totaal > 0 ? String(totaal) : ''
-}
-
-function parseAantalPersonen(val: string | number | undefined): string {
-  if (!val) return ''
-  const match = String(val).match(/\d+/)
-  return match ? match[0] : ''
-}
-
-function parseIngredient(str: string): { naam: string; hoeveelheid: string; eenheid: string } {
-  const s = str.trim().replace(/\s+/g, ' ')
-
-  const bekendeEenheden = [
-    'gram', 'g', 'kg', 'kilogram',
-    'ml', 'cl', 'dl', 'l', 'liter', 'milliliter',
-    'eetlepel', 'eetlepels', 'el',
-    'theelepel', 'theelepels', 'tl', 'tsp', 'tbsp',
-    'kopje', 'kopjes', 'cup', 'cups',
-    'stuks', 'stuk', 'st',
-    'teen', 'tenen',
-    'blikje', 'blik', 'zakje', 'zak',
-    'snufje', 'snuf', 'snufjes',
-    'takje', 'takjes',
-    'plak', 'plakken', 'plakje', 'plakjes',
-  ]
-
-  const patroon = new RegExp(
-    `^(\\d+(?:[,.]\\d+)?(?:\\s*[/-]\\s*\\d+(?:[,.]\\d+)?)?)\\s*(${bekendeEenheden.join('|')})\\.?\\s+(.+)$`,
-    'i'
-  )
-  const m = s.match(patroon)
-  if (m) {
-    return { hoeveelheid: m[1].replace(',', '.').trim(), eenheid: m[2].toLowerCase(), naam: m[3].trim() }
-  }
-
-  const getalVoorop = s.match(/^(\d+(?:[,.]\d+)?)\s+(.+)$/)
-  if (getalVoorop) {
-    return { hoeveelheid: getalVoorop[1].replace(',', '.'), eenheid: '', naam: getalVoorop[2].trim() }
-  }
-
-  return { naam: s, hoeveelheid: '', eenheid: '' }
-}
-
-function parseStap(stap: unknown): string {
-  if (typeof stap === 'string') return stap.trim()
-  if (typeof stap === 'object' && stap !== null) {
-    const s = stap as Record<string, unknown>
-    if (typeof s.text === 'string') return s.text.trim()
-    if (typeof s.name === 'string') return s.name.trim()
-  }
-  return ''
-}
-
-function vindRecipeInJsonLd(data: unknown): Record<string, unknown> | null {
-  if (!data || typeof data !== 'object') return null
-  const obj = data as Record<string, unknown>
-
-  const type = obj['@type']
-  if (type === 'Recipe' || (Array.isArray(type) && type.includes('Recipe'))) return obj
-
-  if (Array.isArray(obj['@graph'])) {
-    for (const item of obj['@graph']) {
-      const gevonden = vindRecipeInJsonLd(item)
-      if (gevonden) return gevonden
-    }
-  }
-
-  if (Array.isArray(data)) {
-    for (const item of data) {
-      const gevonden = vindRecipeInJsonLd(item)
-      if (gevonden) return gevonden
-    }
-  }
-
-  return null
-}
-
-// ── Foto ─────────────────────────────────────────────────────
-
-/**
- * Haal de beste foto-URL op uit het schema.org Recipe-object.
- * Ondersteunt: string, string[], ImageObject, ImageObject[]
- */
-function extractFotoUrl(schema: Record<string, unknown>): string | null {
-  const image = schema.image
-  if (!image) return null
-
-  const kandidaten: string[] = []
-
-  function verwerkItem(item: unknown) {
-    if (typeof item === 'string' && item.startsWith('http')) {
-      kandidaten.push(item)
-    } else if (typeof item === 'object' && item !== null) {
-      const obj = item as Record<string, unknown>
-      // ImageObject heeft 'url'
-      if (typeof obj.url === 'string' && obj.url.startsWith('http')) {
-        kandidaten.push(obj.url)
-      }
-      // Sommige sites zetten de URL in 'contentUrl'
-      if (typeof obj.contentUrl === 'string' && obj.contentUrl.startsWith('http')) {
-        kandidaten.push(obj.contentUrl)
-      }
-    }
-  }
-
-  if (Array.isArray(image)) {
-    image.forEach(verwerkItem)
-  } else {
-    verwerkItem(image)
-  }
-
-  // Kies de eerste (of de grootste op basis van 'width' als dat beschikbaar is)
-  return kandidaten[0] ?? null
-}
+import {
+  parseIsoDuration,
+  parseAantalPersonen,
+  parseIngredient,
+  parseStap,
+  vindRecipeInJsonLd,
+  extractFotoUrl,
+} from '@/lib/recept-import'
 
 const TOEGESTANE_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/gif'])
 const MAX_GROOTTE_BYTES = 5 * 1024 * 1024 // 5 MB
