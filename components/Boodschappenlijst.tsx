@@ -29,6 +29,7 @@ type WeekDag = {
 export default function Boodschappenlijst({ huishoudenId }: { huishoudenId: string }) {
   const [items, setItems] = useState<Item[]>([])
   const [laden, setLaden] = useState(true)
+  const [genFout, setGenFout] = useState('')
 
   // Weekmenu-generator
   const [weekOffset, setWeekOffset] = useState(0)
@@ -44,23 +45,25 @@ export default function Boodschappenlijst({ huishoudenId }: { huishoudenId: stri
   const [ingEenheid, setIngEenheid] = useState('')
   const [toevoegen, setToevoegen] = useState(false)
 
-  // ── Items laden ────────────────────────────────────────────────────────────
+  // ── Items laden (los functienamet zodat genereer het ook kan aanroepen) ───────
+
+  async function laadItems() {
+    setLaden(true)
+    const supabase = createClient()
+    const { data } = await supabase
+      .from('boodschappenlijst_items')
+      .select('id, naam, hoeveelheid, eenheid, afgevinkt, bron, recept_naam')
+      .eq('huishouden_id', huishoudenId)
+      .order('bron')          // weekmenu eerst, daarna handmatig
+      .order('recept_naam')
+      .order('aangemaakt_op')
+    setItems((data ?? []) as Item[])
+    setLaden(false)
+  }
 
   useEffect(() => {
-    async function laadItems() {
-      setLaden(true)
-      const supabase = createClient()
-      const { data } = await supabase
-        .from('boodschappenlijst_items')
-        .select('id, naam, hoeveelheid, eenheid, afgevinkt, bron, recept_naam')
-        .eq('huishouden_id', huishoudenId)
-        .order('bron')          // weekmenu eerst, daarna handmatig
-        .order('recept_naam')
-        .order('aangemaakt_op')
-      setItems((data ?? []) as Item[])
-      setLaden(false)
-    }
     laadItems()
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [huishoudenId])
 
   // ── Weekmenu laden ─────────────────────────────────────────────────────────
@@ -122,58 +125,69 @@ export default function Boodschappenlijst({ huishoudenId }: { huishoudenId: stri
   // ── Weekmenu → boodschappenlijst genereren ─────────────────────────────────
 
   async function genereerVanWeekmenu() {
-    const dagen = weekDagen.filter(d => geselecteerd.has(d.datum) && d.recept_id)
-    if (dagen.length === 0) return
+    const geselecteerdeDagen = weekDagen.filter(
+      d => geselecteerd.has(d.datum) && d.recept_id
+    )
+    if (geselecteerdeDagen.length === 0) return
 
     setGenereren(true)
+    setGenFout('')
     const supabase = createClient()
 
-    // Verwijder eerder gegenereerde weekmenu-items (handmatige items blijven staan)
-    await supabase
-      .from('boodschappenlijst_items')
-      .delete()
-      .eq('huishouden_id', huishoudenId)
-      .eq('bron', 'weekmenu')
-
-    // Haal ingrediënten op voor alle geselecteerde recepten
-    const receptIds = dagen.map(d => d.recept_id as string)
-    const { data: ingredienten } = await supabase
-      .from('ingredienten')
-      .select('recept_id, naam, hoeveelheid, eenheid')
-      .in('recept_id', receptIds)
-      .order('volgorde')
-
-    // Maak een map van recept_id → recept_naam
-    const naamMap: Record<string, string> = {}
-    for (const d of dagen) naamMap[d.recept_id!] = d.recept_naam!
-
-    // Voeg alle ingrediënten in als boodschappenlijst-items
-    const nieuweItems = (ingredienten ?? []).map(ing => ({
-      huishouden_id: huishoudenId,
-      naam: ing.naam,
-      hoeveelheid: ing.hoeveelheid != null ? String(ing.hoeveelheid) : null,
-      eenheid: ing.eenheid,
-      afgevinkt: false,
-      bron: 'weekmenu' as const,
-      recept_naam: naamMap[ing.recept_id] ?? null,
-    }))
-
-    if (nieuweItems.length > 0) {
-      const { data: ingevoegd } = await supabase
+    try {
+      // Verwijder eerder gegenereerde weekmenu-items (handmatige items blijven staan)
+      const { error: deleteError } = await supabase
         .from('boodschappenlijst_items')
-        .insert(nieuweItems)
-        .select('id, naam, hoeveelheid, eenheid, afgevinkt, bron, recept_naam')
+        .delete()
+        .eq('huishouden_id', huishoudenId)
+        .eq('bron', 'weekmenu')
 
-      setItems(prev => [
-        ...(ingevoegd ?? []) as Item[],
-        ...prev.filter(i => i.bron === 'handmatig'),
-      ])
-    } else {
-      setItems(prev => prev.filter(i => i.bron === 'handmatig'))
+      if (deleteError) throw new Error(`Verwijderen mislukt: ${deleteError.message}`)
+
+      // Haal ingrediënten op voor alle geselecteerde recepten
+      const receptIds = geselecteerdeDagen.map(d => d.recept_id as string)
+      const { data: ingredienten, error: ingError } = await supabase
+        .from('ingredienten')
+        .select('recept_id, naam, hoeveelheid, eenheid')
+        .in('recept_id', receptIds)
+        .order('volgorde')
+
+      if (ingError) throw new Error(`Ingrediënten ophalen mislukt: ${ingError.message}`)
+
+      // Maak een map van recept_id → recept_naam
+      const naamMap: Record<string, string> = {}
+      for (const d of geselecteerdeDagen) naamMap[d.recept_id!] = d.recept_naam!
+
+      // Voeg alle ingrediënten in als boodschappenlijst-items
+      const nieuweItems = (ingredienten ?? []).map(ing => ({
+        huishouden_id: huishoudenId,
+        naam: ing.naam,
+        hoeveelheid: ing.hoeveelheid != null ? String(ing.hoeveelheid) : null,
+        eenheid: ing.eenheid,
+        afgevinkt: false,
+        bron: 'weekmenu' as const,
+        recept_naam: naamMap[ing.recept_id] ?? null,
+      }))
+
+      if (nieuweItems.length > 0) {
+        const { error: insertError } = await supabase
+          .from('boodschappenlijst_items')
+          .insert(nieuweItems)
+
+        if (insertError) throw new Error(`Opslaan mislukt: ${insertError.message}`)
+      }
+
+      setGeneratorOpen(false)
+    } catch (err) {
+      const bericht = err instanceof Error ? err.message : 'Onbekende fout'
+      setGenFout(bericht)
+      console.error('Genereren boodschappenlijst mislukt:', err)
+    } finally {
+      // Altijd opnieuw laden vanuit de DB — zo blijft de lijst
+      // gesynchroniseerd, ook als de insert deels geslaagd was.
+      await laadItems()
+      setGenereren(false)
     }
-
-    setGenereren(false)
-    setGeneratorOpen(false)
   }
 
   // ── Handmatig item toevoegen ────────────────────────────────────────────────
@@ -452,7 +466,10 @@ export default function Boodschappenlijst({ huishoudenId }: { huishoudenId: stri
                   </button>
                 )}
 
-                {weekmenuItems.length > 0 && (
+                {genFout && (
+                  <p className="text-xs text-red-600 mt-2 text-center">{genFout}</p>
+                )}
+                {!genFout && weekmenuItems.length > 0 && (
                   <p className="text-xs text-slate-400 mt-2 text-center">
                     Eerder gegenereerde weekmenu-items worden vervangen. Handmatige items blijven staan.
                   </p>
