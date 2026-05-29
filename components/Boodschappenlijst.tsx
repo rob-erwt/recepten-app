@@ -269,7 +269,7 @@ export default function Boodschappenlijst({ huishoudenId }: { huishoudenId: stri
   // ── Hele lijst leeggoien ───────────────────────────────────────────────────
 
   async function leeggooi() {
-    if (!confirm('Weet je zeker dat je de hele lijst wilt leeggoien?')) return
+    if (!confirm('Weet je zeker dat je de hele lijst wilt leegmaken?')) return
     setItems([])
     const supabase = createClient()
     await supabase
@@ -323,7 +323,7 @@ export default function Boodschappenlijst({ huishoudenId }: { huishoudenId: stri
               onClick={leeggooi}
               className="text-sm text-red-400 hover:text-red-600 transition-colors"
             >
-              Leeggoien
+              Leegmaken
             </button>
           )}
         </div>
