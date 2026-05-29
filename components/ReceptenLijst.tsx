@@ -32,65 +32,117 @@ function PersonenBadge({ aantal }: { aantal: number }) {
 }
 
 export default function ReceptenLijst() {
-  const [recepten, setRecepten] = useState<ReceptKaart[]>([])
-  const [categorieen, setCategorieen] = useState<Categorie[]>([])
+  // Zoekterm: twee waarden zodat de UI instant reageert maar de DB-fetch gedebounced is
   const [zoekterm, setZoekterm] = useState('')
+  const [debouncedZoekterm, setDebouncedZoekterm] = useState('')
+
   const [actieveCategorieen, setActieveCategorieen] = useState<string[]>([])
-  const [laden, setLaden] = useState(true)
-  const [fout, setFout] = useState('')
   const [paginaNr, setPaginaNr] = useState(1)
 
+  const [recepten, setRecepten] = useState<ReceptKaart[]>([])
+  const [categorieen, setCategorieen] = useState<Categorie[]>([])
+  const [aantalResultaten, setAantalResultaten] = useState(0)
+  const [laden, setLaden] = useState(true)
+  const [fout, setFout] = useState('')
+
+  // Debounce zoekterm: 300 ms na laatste toetsaanslag wordt de fetch getriggerd
   useEffect(() => {
-    async function laadData() {
+    const timer = setTimeout(() => {
+      setDebouncedZoekterm(zoekterm)
+      setPaginaNr(1)
+    }, 300)
+    return () => clearTimeout(timer)
+  }, [zoekterm])
+
+  // Categorieën eenmalig laden (kleine dataset, verandert zelden)
+  useEffect(() => {
+    async function laadCategorieen() {
+      const supabase = createClient()
+      const { data } = await supabase
+        .from('categorieen')
+        .select('id, naam, volgorde, huishouden_id')
+        .order('volgorde')
+      if (data) setCategorieen(data)
+    }
+    laadCategorieen()
+  }, [])
+
+  // Recepten server-side ophalen: gefilterd, gesorteerd en gepagineerd door Supabase
+  useEffect(() => {
+    async function laadRecepten() {
+      setLaden(true)
+      setFout('')
       try {
         const supabase = createClient()
+        const from = (paginaNr - 1) * PAGINA_GROOTTE
+        const to = from + PAGINA_GROOTTE - 1
 
-        // Categorieën en recepten parallel ophalen
-        const [catResult, recResult] = await Promise.all([
-          supabase
-            .from('categorieen')
-            .select('id, naam, volgorde, huishouden_id')
-            .order('volgorde'),
-          supabase
-            .from('recepten')
-            .select(`
-              id, naam, beschrijving, aantal_personen, bereidingstijd_min, foto_url,
-              recept_categorieen (
-                categorieen (id, naam)
-              )
-            `)
-            .order('naam'),
-        ])
+        // Stap 1: categoriefilter — haal matching recept-IDs op via de koppeltabel
+        let receptenIds: string[] | null = null
+        if (actieveCategorieen.length > 0) {
+          const { data: matches } = await supabase
+            .from('recept_categorieen')
+            .select('recept_id')
+            .in('categorie_id', actieveCategorieen)
 
-        if (recResult.error) {
+          receptenIds = Array.from(new Set((matches ?? []).map(m => m.recept_id as string)))
+
+          // Geen enkele match → direct leeg resultaat teruggeven
+          if (receptenIds.length === 0) {
+            setRecepten([])
+            setAantalResultaten(0)
+            return
+          }
+        }
+
+        // Stap 2: recepten ophalen met naamfilter, paginering en exacte telling
+        let query = supabase
+          .from('recepten')
+          .select(
+            `id, naam, beschrijving, aantal_personen, bereidingstijd_min, foto_url,
+             recept_categorieen ( categorieen (id, naam) )`,
+            { count: 'exact' }
+          )
+          .order('naam')
+          .range(from, to)
+
+        if (debouncedZoekterm) {
+          query = query.ilike('naam', `%${debouncedZoekterm}%`)
+        }
+
+        if (receptenIds !== null) {
+          query = query.in('id', receptenIds)
+        }
+
+        const { data, count, error } = await query
+
+        if (error) {
           setFout('Recepten konden niet worden geladen.')
-        } else {
-          // Supabase geeft geneste join terug: vlak maken naar categorieen[]
-          const gemapt: ReceptKaart[] = (recResult.data ?? []).map(r => ({
-            id: r.id,
-            naam: r.naam,
-            beschrijving: r.beschrijving,
-            aantal_personen: r.aantal_personen,
-            bereidingstijd_min: r.bereidingstijd_min,
-            foto_url: r.foto_url,
-            categorieen: ((r.recept_categorieen ?? []) as unknown as { categorieen: { id: string; naam: string } | null }[])
-              .map(rc => rc.categorieen)
-              .filter(Boolean) as { id: string; naam: string }[],
-          }))
-          setRecepten(gemapt)
+          return
         }
 
-        if (!catResult.error) {
-          setCategorieen(catResult.data ?? [])
-        }
+        const gemapt: ReceptKaart[] = (data ?? []).map(r => ({
+          id: r.id,
+          naam: r.naam,
+          beschrijving: r.beschrijving,
+          aantal_personen: r.aantal_personen,
+          bereidingstijd_min: r.bereidingstijd_min,
+          foto_url: r.foto_url,
+          categorieen: ((r.recept_categorieen ?? []) as unknown as { categorieen: { id: string; naam: string } | null }[])
+            .map(rc => rc.categorieen)
+            .filter(Boolean) as { id: string; naam: string }[],
+        }))
+
+        setRecepten(gemapt)
+        setAantalResultaten(count ?? 0)
       } catch {
         setFout('Recepten konden niet worden geladen.')
       } finally {
         setLaden(false)
       }
     }
-    laadData()
-  }, [])
+    laadRecepten()
+  }, [debouncedZoekterm, actieveCategorieen, paginaNr])
 
   function toggleCategorie(id: string) {
     setPaginaNr(1)
@@ -103,21 +155,11 @@ export default function ReceptenLijst() {
     setPaginaNr(1)
     setActieveCategorieen([])
     setZoekterm('')
+    setDebouncedZoekterm('') // direct wissen zodat fetch meteen triggert
   }
 
   const heeftActieveFilters = zoekterm.length > 0 || actieveCategorieen.length > 0
-
-  const gefilterd = recepten.filter(r => {
-    const naamMatch = r.naam.toLowerCase().includes(zoekterm.toLowerCase())
-    const catMatch =
-      actieveCategorieen.length === 0 ||
-      r.categorieen.some(c => actieveCategorieen.includes(c.id))
-    return naamMatch && catMatch
-  })
-
-  const aantalPaginas = Math.max(1, Math.ceil(gefilterd.length / PAGINA_GROOTTE))
-  const huidigePagina = Math.min(paginaNr, aantalPaginas)
-  const gepagineerd = gefilterd.slice((huidigePagina - 1) * PAGINA_GROOTTE, huidigePagina * PAGINA_GROOTTE)
+  const aantalPaginas = Math.max(1, Math.ceil(aantalResultaten / PAGINA_GROOTTE))
 
   return (
     <div>
@@ -150,11 +192,11 @@ export default function ReceptenLijst() {
           className="input pl-10"
           placeholder="Zoek op naam…"
           value={zoekterm}
-          onChange={e => { setZoekterm(e.target.value); setPaginaNr(1) }}
+          onChange={e => setZoekterm(e.target.value)}
         />
         {zoekterm && (
           <button
-            onClick={() => setZoekterm('')}
+            onClick={() => { setZoekterm(''); setDebouncedZoekterm('') }}
             className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
           >
             <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -194,7 +236,6 @@ export default function ReceptenLijst() {
               Alles wissen
             </button>
           )}
-          {/* Beheren-link — gescheiden met een dunne lijn */}
           <span className="text-slate-200 select-none">|</span>
           <Link
             href="/recepten/categorieen"
@@ -209,7 +250,7 @@ export default function ReceptenLijst() {
         </div>
       )}
 
-      {/* States */}
+      {/* Laadspinner */}
       {laden && (
         <div className="text-center py-16 text-slate-400">
           <div className="inline-block w-6 h-6 border-2 border-slate-200 border-t-primary-500 rounded-full animate-spin mb-3" />
@@ -217,11 +258,13 @@ export default function ReceptenLijst() {
         </div>
       )}
 
+      {/* Foutmelding */}
       {!laden && fout && (
         <div className="card p-4 text-center text-red-600 text-sm">{fout}</div>
       )}
 
-      {!laden && !fout && recepten.length === 0 && (
+      {/* Lege staat: nog geen recepten aangemaakt */}
+      {!laden && !fout && aantalResultaten === 0 && !heeftActieveFilters && (
         <div className="text-center py-16">
           <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-slate-100 mb-4">
             <svg xmlns="http://www.w3.org/2000/svg" className="w-7 h-7 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
@@ -236,7 +279,8 @@ export default function ReceptenLijst() {
         </div>
       )}
 
-      {!laden && !fout && recepten.length > 0 && gefilterd.length === 0 && (
+      {/* Lege staat: geen zoekresultaten */}
+      {!laden && !fout && aantalResultaten === 0 && heeftActieveFilters && (
         <div className="text-center py-12 text-slate-500">
           <p className="text-sm">Geen recepten gevonden.</p>
           <button
@@ -249,9 +293,9 @@ export default function ReceptenLijst() {
       )}
 
       {/* Receptenlijst */}
-      {!laden && !fout && gefilterd.length > 0 && (
+      {!laden && !fout && aantalResultaten > 0 && (
         <div className="space-y-2">
-          {gepagineerd.map(recept => (
+          {recepten.map(recept => (
             <Link
               key={recept.id}
               href={`/recepten/${recept.id}`}
@@ -302,19 +346,19 @@ export default function ReceptenLijst() {
       )}
 
       {/* Paginering + teller */}
-      {!laden && !fout && gefilterd.length > 0 && (
+      {!laden && !fout && aantalResultaten > 0 && (
         <div className="mt-5 flex flex-col items-center gap-3">
           {aantalPaginas > 1 && (
             <div className="flex items-center gap-1">
               <button
                 onClick={() => setPaginaNr(p => Math.max(1, p - 1))}
-                disabled={huidigePagina === 1}
+                disabled={paginaNr === 1}
                 className="px-3 py-1.5 rounded-lg text-sm text-slate-500 hover:text-slate-900 hover:bg-slate-100 disabled:opacity-30 disabled:pointer-events-none transition-colors"
               >
                 ← Vorige
               </button>
 
-              {paginaNummers(aantalPaginas, huidigePagina).map((item, i) =>
+              {paginaNummers(aantalPaginas, paginaNr).map((item, i) =>
                 item === '…' ? (
                   <span key={`ellipsis-${i}`} className="px-2 text-slate-300 text-sm select-none">…</span>
                 ) : (
@@ -322,7 +366,7 @@ export default function ReceptenLijst() {
                     key={item}
                     onClick={() => setPaginaNr(item)}
                     className={`w-8 h-8 rounded-lg text-sm font-medium transition-colors ${
-                      item === huidigePagina
+                      item === paginaNr
                         ? 'bg-primary-500 text-white'
                         : 'text-slate-600 hover:bg-slate-100'
                     }`}
@@ -334,7 +378,7 @@ export default function ReceptenLijst() {
 
               <button
                 onClick={() => setPaginaNr(p => Math.min(aantalPaginas, p + 1))}
-                disabled={huidigePagina === aantalPaginas}
+                disabled={paginaNr === aantalPaginas}
                 className="px-3 py-1.5 rounded-lg text-sm text-slate-500 hover:text-slate-900 hover:bg-slate-100 disabled:opacity-30 disabled:pointer-events-none transition-colors"
               >
                 Volgende →
@@ -343,10 +387,9 @@ export default function ReceptenLijst() {
           )}
 
           <p className="text-xs text-slate-400">
-            {gefilterd.length === recepten.length
-              ? `${recepten.length} recepten`
-              : `${gefilterd.length} van ${recepten.length} recepten`}
-            {aantalPaginas > 1 && ` · pagina ${huidigePagina} van ${aantalPaginas}`}
+            {aantalResultaten} {aantalResultaten === 1 ? 'recept' : 'recepten'}
+            {heeftActieveFilters && ' gevonden'}
+            {aantalPaginas > 1 && ` · pagina ${paginaNr} van ${aantalPaginas}`}
           </p>
         </div>
       )}
