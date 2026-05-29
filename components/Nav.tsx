@@ -50,6 +50,17 @@ export default function Nav() {
             Weekmenu
           </Link>
 
+          <Link
+            href="/instellingen"
+            className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+              pathname.startsWith('/instellingen')
+                ? 'bg-primary-50 text-primary-700'
+                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+            }`}
+          >
+            Instellingen
+          </Link>
+
           <button
             onClick={handleUitloggen}
             className="ml-2 px-3 py-1.5 rounded-lg text-sm font-medium text-slate-500 hover:text-slate-900 hover:bg-slate-100 transition-colors"

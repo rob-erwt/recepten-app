@@ -29,7 +29,10 @@ export async function middleware(request: NextRequest) {
 
   const { pathname } = request.nextUrl
   const isAuthRoute = pathname.startsWith('/login') || pathname.startsWith('/register')
-  const isProtectedRoute = pathname.startsWith('/recepten') || pathname.startsWith('/weekmenu')
+  const isProtectedRoute =
+    pathname.startsWith('/recepten') ||
+    pathname.startsWith('/weekmenu') ||
+    pathname.startsWith('/instellingen')
 
   if (!user && isProtectedRoute) {
     return NextResponse.redirect(new URL('/login', request.url))
