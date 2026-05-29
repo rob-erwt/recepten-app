@@ -266,6 +266,18 @@ export default function Boodschappenlijst({ huishoudenId }: { huishoudenId: stri
       .eq('huishouden_id', huishoudenId)
   }
 
+  // ── Hele lijst leeggoien ───────────────────────────────────────────────────
+
+  async function leeggooi() {
+    if (!confirm('Weet je zeker dat je de hele lijst wilt leeggoien?')) return
+    setItems([])
+    const supabase = createClient()
+    await supabase
+      .from('boodschappenlijst_items')
+      .delete()
+      .eq('huishouden_id', huishoudenId)
+  }
+
   // ── Helpers ────────────────────────────────────────────────────────────────
 
   function toggleDag(datum: string) {
@@ -297,14 +309,24 @@ export default function Boodschappenlijst({ huishoudenId }: { huishoudenId: stri
       {/* Header */}
       <div className="flex items-center justify-between mb-5">
         <h1>Boodschappenlijst</h1>
-        {aantalAfgevinkt > 0 && (
-          <button
-            onClick={wisVinkjes}
-            className="text-sm text-slate-500 hover:text-slate-800 transition-colors"
-          >
-            Wis {aantalAfgevinkt} vinkje{aantalAfgevinkt !== 1 ? 's' : ''}
-          </button>
-        )}
+        <div className="flex items-center gap-3">
+          {aantalAfgevinkt > 0 && (
+            <button
+              onClick={wisVinkjes}
+              className="text-sm text-slate-500 hover:text-slate-800 transition-colors"
+            >
+              Wis {aantalAfgevinkt} vinkje{aantalAfgevinkt !== 1 ? 's' : ''}
+            </button>
+          )}
+          {items.length > 0 && (
+            <button
+              onClick={leeggooi}
+              className="text-sm text-red-400 hover:text-red-600 transition-colors"
+            >
+              Leeggoien
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Handmatig toevoegen */}
