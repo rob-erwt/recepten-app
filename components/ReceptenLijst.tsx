@@ -1,10 +1,13 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, KeyboardEvent } from 'react'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import type { ReceptKaart, Categorie } from '@/lib/types'
 import { PAGINA_GROOTTE, paginaNummers } from '@/lib/paginering'
+
+// Lokale uitbreiding: optionele gevonden_ingredienten voor de zoekresultatenweergave
+type ReceptKaartZoek = ReceptKaart & { gevonden_ingredienten?: string[] }
 
 function TijdBadge({ minuten }: { minuten: number }) {
   const uur = Math.floor(minuten / 60)
@@ -32,20 +35,24 @@ function PersonenBadge({ aantal }: { aantal: number }) {
 }
 
 export default function ReceptenLijst() {
-  // Zoekterm: twee waarden zodat de UI instant reageert maar de DB-fetch gedebounced is
+  // Naamzoeken (gedebounced)
   const [zoekterm, setZoekterm] = useState('')
   const [debouncedZoekterm, setDebouncedZoekterm] = useState('')
+
+  // Ingrediëntenzoeken (chips)
+  const [ingInput, setIngInput] = useState('')
+  const [ingChips, setIngChips] = useState<string[]>([])
 
   const [actieveCategorieen, setActieveCategorieen] = useState<string[]>([])
   const [paginaNr, setPaginaNr] = useState(1)
 
-  const [recepten, setRecepten] = useState<ReceptKaart[]>([])
+  const [recepten, setRecepten] = useState<ReceptKaartZoek[]>([])
   const [categorieen, setCategorieen] = useState<Categorie[]>([])
   const [aantalResultaten, setAantalResultaten] = useState(0)
   const [laden, setLaden] = useState(true)
   const [fout, setFout] = useState('')
 
-  // Debounce zoekterm: 300 ms na laatste toetsaanslag wordt de fetch getriggerd
+  // Debounce zoekterm
   useEffect(() => {
     const timer = setTimeout(() => {
       setDebouncedZoekterm(zoekterm)
@@ -54,7 +61,7 @@ export default function ReceptenLijst() {
     return () => clearTimeout(timer)
   }, [zoekterm])
 
-  // Categorieën eenmalig laden (kleine dataset, verandert zelden)
+  // Categorieën eenmalig laden
   useEffect(() => {
     async function laadCategorieen() {
       const supabase = createClient()
@@ -67,7 +74,7 @@ export default function ReceptenLijst() {
     laadCategorieen()
   }, [])
 
-  // Recepten server-side ophalen: gefilterd, gesorteerd en gepagineerd door Supabase
+  // Recepten server-side ophalen
   useEffect(() => {
     async function laadRecepten() {
       setLaden(true)
@@ -77,30 +84,72 @@ export default function ReceptenLijst() {
         const from = (paginaNr - 1) * PAGINA_GROOTTE
         const to = from + PAGINA_GROOTTE - 1
 
-        // Stap 1: categoriefilter — haal matching recept-IDs op via de koppeltabel
-        let receptenIds: string[] | null = null
-        if (actieveCategorieen.length > 0) {
-          const { data: matches } = await supabase
-            .from('recept_categorieen')
-            .select('recept_id')
-            .in('categorie_id', actieveCategorieen)
+        // ── Stap 1: ingrediëntenfilter ────────────────────────────────────────
+        // Per chip zoeken welke recept-IDs een ingrediënt met die naam bevatten,
+        // daarna de doorsnede nemen (AND-logica: recept moet álle chips bevatten).
+        let ingredientIds: string[] | null = null
+        if (ingChips.length > 0) {
+          const sets: Set<string>[] = []
+          for (const chip of ingChips) {
+            const { data } = await supabase
+              .from('ingredienten')
+              .select('recept_id')
+              .ilike('naam', `%${chip}%`)
+            sets.push(new Set((data ?? []).map(r => r.recept_id as string)))
+          }
+          // Doorsnede: ID moet in élke set voorkomen
+          const [eerste, ...rest] = sets
+          ingredientIds = Array.from(eerste).filter(id => rest.every(s => s.has(id)))
 
-          receptenIds = Array.from(new Set((matches ?? []).map(m => m.recept_id as string)))
-
-          // Geen enkele match → direct leeg resultaat teruggeven
-          if (receptenIds.length === 0) {
+          if (ingredientIds.length === 0) {
             setRecepten([])
             setAantalResultaten(0)
             return
           }
         }
 
-        // Stap 2: recepten ophalen met naamfilter, paginering en exacte telling
+        // ── Stap 2: categoriefilter ───────────────────────────────────────────
+        let categorieIds: string[] | null = null
+        if (actieveCategorieen.length > 0) {
+          const { data } = await supabase
+            .from('recept_categorieen')
+            .select('recept_id')
+            .in('categorie_id', actieveCategorieen)
+          categorieIds = Array.from(new Set((data ?? []).map(m => m.recept_id as string)))
+
+          if (categorieIds.length === 0) {
+            setRecepten([])
+            setAantalResultaten(0)
+            return
+          }
+        }
+
+        // ── Stap 3: combineer filters ─────────────────────────────────────────
+        let gefilterdOpIds: string[] | null = null
+        if (ingredientIds !== null && categorieIds !== null) {
+          const catSet = new Set(categorieIds)
+          gefilterdOpIds = ingredientIds.filter(id => catSet.has(id))
+        } else {
+          gefilterdOpIds = ingredientIds ?? categorieIds
+        }
+
+        if (gefilterdOpIds !== null && gefilterdOpIds.length === 0) {
+          setRecepten([])
+          setAantalResultaten(0)
+          return
+        }
+
+        // ── Stap 4: recepten ophalen ──────────────────────────────────────────
+        // ingredienten(naam) wordt altijd meegestuurd; de data wordt alleen
+        // gebruikt om gevonden_ingredienten te bepalen als chips actief zijn.
+        const heeftIngredientFilter = ingChips.length > 0
+
         let query = supabase
           .from('recepten')
           .select(
             `id, naam, beschrijving, aantal_personen, bereidingstijd_min, foto_url,
-             recept_categorieen ( categorieen (id, naam) )`,
+             recept_categorieen ( categorieen (id, naam) ),
+             ingredienten ( naam )`,
             { count: 'exact' }
           )
           .order('naam')
@@ -109,9 +158,8 @@ export default function ReceptenLijst() {
         if (debouncedZoekterm) {
           query = query.ilike('naam', `%${debouncedZoekterm}%`)
         }
-
-        if (receptenIds !== null) {
-          query = query.in('id', receptenIds)
+        if (gefilterdOpIds !== null) {
+          query = query.in('id', gefilterdOpIds)
         }
 
         const { data, count, error } = await query
@@ -121,17 +169,31 @@ export default function ReceptenLijst() {
           return
         }
 
-        const gemapt: ReceptKaart[] = (data ?? []).map(r => ({
-          id: r.id,
-          naam: r.naam,
-          beschrijving: r.beschrijving,
-          aantal_personen: r.aantal_personen,
-          bereidingstijd_min: r.bereidingstijd_min,
-          foto_url: r.foto_url,
-          categorieen: ((r.recept_categorieen ?? []) as unknown as { categorieen: { id: string; naam: string } | null }[])
-            .map(rc => rc.categorieen)
-            .filter(Boolean) as { id: string; naam: string }[],
-        }))
+        const gemapt: ReceptKaartZoek[] = (data ?? []).map(r => {
+          const alleIngredienten = heeftIngredientFilter
+            ? ((r as unknown as { ingredienten: { naam: string }[] }).ingredienten ?? []).map(i => i.naam)
+            : []
+
+          // Welke ingrediënten van dit recept matchen de zoekopdracht?
+          const gevonden = heeftIngredientFilter
+            ? alleIngredienten.filter(naam =>
+                ingChips.some(chip => naam.toLowerCase().includes(chip.toLowerCase()))
+              )
+            : undefined
+
+          return {
+            id: r.id,
+            naam: r.naam,
+            beschrijving: r.beschrijving,
+            aantal_personen: r.aantal_personen,
+            bereidingstijd_min: r.bereidingstijd_min,
+            foto_url: r.foto_url,
+            categorieen: ((r.recept_categorieen ?? []) as unknown as { categorieen: { id: string; naam: string } | null }[])
+              .map(rc => rc.categorieen)
+              .filter(Boolean) as { id: string; naam: string }[],
+            gevonden_ingredienten: gevonden,
+          }
+        })
 
         setRecepten(gemapt)
         setAantalResultaten(count ?? 0)
@@ -142,7 +204,35 @@ export default function ReceptenLijst() {
       }
     }
     laadRecepten()
-  }, [debouncedZoekterm, actieveCategorieen, paginaNr])
+  }, [debouncedZoekterm, ingChips, actieveCategorieen, paginaNr])
+
+  // ── Chip-beheer ─────────────────────────────────────────────────────────────
+
+  function voegChipToe() {
+    const chip = ingInput.trim()
+    if (chip && !ingChips.includes(chip.toLowerCase())) {
+      setIngChips(prev => [...prev, chip.toLowerCase()])
+      setPaginaNr(1)
+    }
+    setIngInput('')
+  }
+
+  function handleIngKeyDown(e: KeyboardEvent<HTMLInputElement>) {
+    if (e.key === 'Enter') {
+      e.preventDefault()
+      voegChipToe()
+    } else if (e.key === 'Backspace' && ingInput === '' && ingChips.length > 0) {
+      setIngChips(prev => prev.slice(0, -1))
+      setPaginaNr(1)
+    }
+  }
+
+  function verwijderChip(chip: string) {
+    setIngChips(prev => prev.filter(c => c !== chip))
+    setPaginaNr(1)
+  }
+
+  // ── Overige filteracties ────────────────────────────────────────────────────
 
   function toggleCategorie(id: string) {
     setPaginaNr(1)
@@ -155,15 +245,18 @@ export default function ReceptenLijst() {
     setPaginaNr(1)
     setActieveCategorieen([])
     setZoekterm('')
-    setDebouncedZoekterm('') // direct wissen zodat fetch meteen triggert
+    setDebouncedZoekterm('')
+    setIngChips([])
+    setIngInput('')
   }
 
-  const heeftActieveFilters = zoekterm.length > 0 || actieveCategorieen.length > 0
+  const heeftActieveFilters =
+    zoekterm.length > 0 || ingChips.length > 0 || actieveCategorieen.length > 0
   const aantalPaginas = Math.max(1, Math.ceil(aantalResultaten / PAGINA_GROOTTE))
 
   return (
     <div>
-      {/* Header */}
+      {/* ── Header ── */}
       <div className="flex items-center justify-between mb-5">
         <h1>Mijn recepten</h1>
         <div className="flex items-center gap-2">
@@ -182,7 +275,7 @@ export default function ReceptenLijst() {
         </div>
       </div>
 
-      {/* Zoekbalk */}
+      {/* ── Zoeken op naam ── */}
       <div className="relative mb-3">
         <svg xmlns="http://www.w3.org/2000/svg" className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
           <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
@@ -206,7 +299,47 @@ export default function ReceptenLijst() {
         )}
       </div>
 
-      {/* Categoriefilter */}
+      {/* ── Zoeken op ingrediënten (chips) ── */}
+      <div className="mb-3">
+        <div className="flex items-center gap-2 flex-wrap px-3 py-2 rounded-xl border border-slate-200 bg-white focus-within:border-primary-400 focus-within:ring-2 focus-within:ring-primary-100 transition-all min-h-[42px]">
+          {/* Actieve chips */}
+          {ingChips.map(chip => (
+            <span
+              key={chip}
+              className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-primary-100 text-primary-800 text-sm font-medium"
+            >
+              {chip}
+              <button
+                onClick={() => verwijderChip(chip)}
+                className="text-primary-500 hover:text-primary-800 transition-colors"
+                aria-label={`Verwijder ${chip}`}
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </span>
+          ))}
+
+          {/* Invoerveld */}
+          <input
+            type="text"
+            className="flex-1 min-w-[140px] text-sm outline-none bg-transparent text-slate-700 placeholder:text-slate-400"
+            placeholder={ingChips.length === 0 ? 'Zoek op ingrediënt — druk Enter om toe te voegen…' : 'Nog een ingrediënt…'}
+            value={ingInput}
+            onChange={e => setIngInput(e.target.value)}
+            onKeyDown={handleIngKeyDown}
+            onBlur={voegChipToe}
+          />
+        </div>
+        {ingChips.length > 0 && (
+          <p className="text-xs text-slate-400 mt-1 ml-1">
+            Toont recepten die álle ingrediënten bevatten
+          </p>
+        )}
+      </div>
+
+      {/* ── Categoriefilter ── */}
       {categorieen.length > 0 && (
         <div className="flex items-center gap-2 flex-wrap mb-5">
           {categorieen.map(cat => {
@@ -250,7 +383,7 @@ export default function ReceptenLijst() {
         </div>
       )}
 
-      {/* Laadspinner */}
+      {/* ── States ── */}
       {laden && (
         <div className="text-center py-16 text-slate-400">
           <div className="inline-block w-6 h-6 border-2 border-slate-200 border-t-primary-500 rounded-full animate-spin mb-3" />
@@ -258,12 +391,10 @@ export default function ReceptenLijst() {
         </div>
       )}
 
-      {/* Foutmelding */}
       {!laden && fout && (
         <div className="card p-4 text-center text-red-600 text-sm">{fout}</div>
       )}
 
-      {/* Lege staat: nog geen recepten aangemaakt */}
       {!laden && !fout && aantalResultaten === 0 && !heeftActieveFilters && (
         <div className="text-center py-16">
           <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-slate-100 mb-4">
@@ -273,26 +404,20 @@ export default function ReceptenLijst() {
           </div>
           <h3 className="text-slate-700 mb-1">Nog geen recepten</h3>
           <p className="text-sm text-slate-400 mb-5">Voeg je eerste recept toe om te beginnen.</p>
-          <Link href="/recepten/nieuw" className="btn-primary">
-            Eerste recept toevoegen
-          </Link>
+          <Link href="/recepten/nieuw" className="btn-primary">Eerste recept toevoegen</Link>
         </div>
       )}
 
-      {/* Lege staat: geen zoekresultaten */}
       {!laden && !fout && aantalResultaten === 0 && heeftActieveFilters && (
         <div className="text-center py-12 text-slate-500">
           <p className="text-sm">Geen recepten gevonden.</p>
-          <button
-            onClick={wisFilters}
-            className="text-sm text-primary-600 hover:underline mt-2"
-          >
+          <button onClick={wisFilters} className="text-sm text-primary-600 hover:underline mt-2">
             Filters wissen
           </button>
         </div>
       )}
 
-      {/* Receptenlijst */}
+      {/* ── Receptenlijst ── */}
       {!laden && !fout && aantalResultaten > 0 && (
         <div className="space-y-2">
           {recepten.map(recept => (
@@ -327,14 +452,26 @@ export default function ReceptenLijst() {
                   {recept.bereidingstijd_min && <TijdBadge minuten={recept.bereidingstijd_min} />}
                   {recept.aantal_personen && <PersonenBadge aantal={recept.aantal_personen} />}
                   {recept.categorieen.map(c => (
-                    <span
-                      key={c.id}
-                      className="text-xs px-2 py-0.5 rounded-full bg-primary-50 text-primary-700 font-medium"
-                    >
+                    <span key={c.id} className="text-xs px-2 py-0.5 rounded-full bg-primary-50 text-primary-700 font-medium">
                       {c.naam}
                     </span>
                   ))}
                 </div>
+
+                {/* Gevonden ingrediënten — alleen zichtbaar bij actieve ingrediëntenzoekopdracht */}
+                {recept.gevonden_ingredienten && recept.gevonden_ingredienten.length > 0 && (
+                  <div className="flex items-center gap-1.5 flex-wrap mt-1.5">
+                    <span className="text-xs text-slate-400">ingrediënten:</span>
+                    {recept.gevonden_ingredienten.map(ing => (
+                      <span key={ing} className="inline-flex items-center gap-0.5 text-xs px-1.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 font-medium">
+                        <svg xmlns="http://www.w3.org/2000/svg" className="w-2.5 h-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                        </svg>
+                        {ing}
+                      </span>
+                    ))}
+                  </div>
+                )}
               </div>
 
               <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4 text-slate-300 group-hover:text-primary-400 flex-shrink-0 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -345,7 +482,7 @@ export default function ReceptenLijst() {
         </div>
       )}
 
-      {/* Paginering + teller */}
+      {/* ── Paginering + teller ── */}
       {!laden && !fout && aantalResultaten > 0 && (
         <div className="mt-5 flex flex-col items-center gap-3">
           {aantalPaginas > 1 && (
