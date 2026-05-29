@@ -32,6 +32,7 @@ export async function middleware(request: NextRequest) {
   const isProtectedRoute =
     pathname.startsWith('/recepten') ||
     pathname.startsWith('/weekmenu') ||
+    pathname.startsWith('/boodschappenlijst') ||
     pathname.startsWith('/instellingen')
 
   if (!user && isProtectedRoute) {
