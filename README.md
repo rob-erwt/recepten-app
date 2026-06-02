@@ -59,13 +59,10 @@ npm install
 ### 2. Supabase project aanmaken
 
 1. Maak een nieuw project aan op [supabase.com](https://supabase.com)
-2. Ga naar **SQL Editor** en voer de volgende scripts achtereenvolgens uit:
+2. Ga naar **SQL Editor** en voer het volgende script uit:
 
 ```
-schema.sql                       ← tabellen, RLS-beleid, triggers
-migration_categorieen.sql        ← categorieën-tabel + standaard categorieën
-migration_categorieen_beheer.sql ← beheerrechten voor eigen categorieën
-migration_storage.sql            ← foto-opslag bucket + policies
+schema.sql   ← alle tabellen, RLS-beleid, triggers, functies en seed-data
 ```
 
 > **Let op:** Als `schema.sql` een fout geeft op de trigger-regel (`permission denied for schema auth`), verwijder dan de twee `create trigger`-regels onderaan het script, run het opnieuw en stel de trigger daarna in via **Supabase Dashboard → Authentication → Hooks → "Run a function after user creation" → `handle_new_user`**.
@@ -111,8 +108,7 @@ lib/
   supabase/           ← Supabase client (browser + server)
   types.ts            ← gedeelde TypeScript-types
 middleware.ts         ← routebescherming (auth guard)
-schema.sql            ← database schema
-migration_*.sql       ← database migraties
+schema.sql            ← volledig databaseschema (tabellen, RLS, triggers, seed)
 ```
 
 ---
