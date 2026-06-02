@@ -207,67 +207,32 @@ export default function ReceptFormulier({ recept, initialValues, huishoudenId }:
     const supabase = createClient()
 
     try {
-      let receptId = recept?.id
-
-      const receptData = {
-        naam: naam.trim(),
-        beschrijving: beschrijving.trim() || null,
-        aantal_personen: aantalPersonen ? parseInt(aantalPersonen) : null,
-        bereidingstijd_min: bereidingstijd ? parseInt(bereidingstijd) : null,
-        foto_url: fotoUrl ?? null,
-        huishouden_id: huishoudenId,
-      }
-
-      if (bewerkModus && receptId) {
-        const { error } = await supabase.from('recepten').update(receptData).eq('id', receptId)
-        if (error) throw error
-      } else {
-        const { data, error } = await supabase.from('recepten').insert(receptData).select('id').single()
-        if (error) throw error
-        receptId = data.id
-      }
-
-      // Ingrediënten opslaan (delete + insert)
-      await supabase.from('ingredienten').delete().eq('recept_id', receptId)
-      const geldigeIngredienten = ingredienten.filter(i => i.naam.trim())
-      if (geldigeIngredienten.length > 0) {
-        const { error } = await supabase.from('ingredienten').insert(
-          geldigeIngredienten.map((ing, idx) => ({
-            recept_id: receptId,
-            naam: ing.naam.trim(),
-            hoeveelheid: ing.hoeveelheid ? parseFloat(ing.hoeveelheid) : null,
-            eenheid: ing.eenheid.trim() || null,
-            volgorde: idx,
-          }))
-        )
-        if (error) throw error
-      }
-
-      // Stappen opslaan (delete + insert)
-      await supabase.from('stappen').delete().eq('recept_id', receptId)
-      const geldigeStappen = stappen.filter(s => s.omschrijving.trim())
-      if (geldigeStappen.length > 0) {
-        const { error } = await supabase.from('stappen').insert(
-          geldigeStappen.map((stap, idx) => ({
-            recept_id: receptId,
-            stap_nummer: idx + 1,
+      const { data: receptId, error } = await supabase.rpc('sla_recept_op', {
+        p_recept_id:       bewerkModus && recept?.id ? recept.id : null,
+        p_huishouden_id:   huishoudenId,
+        p_naam:            naam.trim(),
+        p_beschrijving:    beschrijving.trim() || null,
+        p_aantal_personen: aantalPersonen ? parseInt(aantalPersonen) : null,
+        p_bereidingstijd:  bereidingstijd ? parseInt(bereidingstijd) : null,
+        p_foto_url:        fotoUrl ?? null,
+        p_ingredienten:    ingredienten
+          .filter(i => i.naam.trim())
+          .map((ing, idx) => ({
+            naam:        ing.naam.trim(),
+            hoeveelheid: ing.hoeveelheid || null,
+            eenheid:     ing.eenheid.trim() || null,
+            volgorde:    idx,
+          })),
+        p_stappen:         stappen
+          .filter(s => s.omschrijving.trim())
+          .map((stap, idx) => ({
+            stap_nummer:  idx + 1,
             omschrijving: stap.omschrijving.trim(),
-          }))
-        )
-        if (error) throw error
-      }
+          })),
+        p_categorie_ids:   geselecteerdeCategorieen,
+      })
 
-      // Categorieën opslaan (delete + insert)
-      await supabase.from('recept_categorieen').delete().eq('recept_id', receptId)
-      if (geselecteerdeCategorieen.length > 0) {
-        const { error } = await supabase.from('recept_categorieen').insert(
-          geselecteerdeCategorieen.map(catId => ({
-            recept_id: receptId,
-            categorie_id: catId,
-          }))
-        )
-        if (error) throw error
-      }
+      if (error) throw error
 
       router.push(`/recepten/${receptId}`)
       router.refresh()

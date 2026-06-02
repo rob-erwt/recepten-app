@@ -8,7 +8,8 @@
     "start": "next start",
     "lint": "next lint",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "gen-types": "npx supabase gen types typescript --project-id cetjxdqlbqqqflaeewbe > lib/database.types.ts"
   },
   "dependencies": {
     "@supabase/ssr": "^0.5.2",

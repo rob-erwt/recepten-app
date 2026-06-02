@@ -36,8 +36,8 @@ export default async function ReceptDetailPage({ params }: { params: { id: strin
   const stappen = [...recept.stappen].sort((a, b) => a.stap_nummer - b.stap_nummer)
   const categorieen = (recept.recept_categorieen ?? [])
     .map((rc: { categorieen: { id: string; naam: string; volgorde: number } | null }) => rc.categorieen)
-    .filter(Boolean)
-    .sort((a: { volgorde: number }, b: { volgorde: number }) => a.volgorde - b.volgorde) as { id: string; naam: string }[]
+    .filter((c): c is { id: string; naam: string; volgorde: number } => c !== null)
+    .sort((a, b) => a.volgorde - b.volgorde)
 
   function formatHoeveelheid(hoev: number | null, eenheid: string | null) {
     if (!hoev && !eenheid) return null

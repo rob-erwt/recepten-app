@@ -171,7 +171,7 @@ export default function ReceptenLijst() {
 
         const gemapt: ReceptKaartZoek[] = (data ?? []).map(r => {
           const alleIngredienten = heeftIngredientFilter
-            ? ((r as unknown as { ingredienten: { naam: string }[] }).ingredienten ?? []).map(i => i.naam)
+            ? (r.ingredienten ?? []).map(i => i.naam)
             : []
 
           // Welke ingrediënten van dit recept matchen de zoekopdracht?
@@ -188,9 +188,9 @@ export default function ReceptenLijst() {
             aantal_personen: r.aantal_personen,
             bereidingstijd_min: r.bereidingstijd_min,
             foto_url: r.foto_url,
-            categorieen: ((r.recept_categorieen ?? []) as unknown as { categorieen: { id: string; naam: string } | null }[])
+            categorieen: (r.recept_categorieen ?? [])
               .map(rc => rc.categorieen)
-              .filter(Boolean) as { id: string; naam: string }[],
+              .filter((c): c is { id: string; naam: string } => c !== null),
             gevonden_ingredienten: gevonden,
           }
         })

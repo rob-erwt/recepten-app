@@ -51,7 +51,7 @@ export default function WeekMenuOverzicht({ huishoudenId }: { huishoudenId: stri
           id: entry.id,
           datum: entry.datum,
           recept_id: entry.recept_id,
-          recept: (entry.recepten as unknown as ReceptKaart | null),
+          recept: entry.recepten as ReceptKaart | null,
         }
       }
       setWeekmenu(map)

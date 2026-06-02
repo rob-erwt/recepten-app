@@ -93,7 +93,7 @@ export default function Boodschappenlijst({ huishoudenId }: { huishoudenId: stri
         if (entry.recept_id && entry.recepten) {
           menuMap[entry.datum] = {
             recept_id: entry.recept_id,
-            recept_naam: (entry.recepten as unknown as { naam: string }).naam,
+            recept_naam: (entry.recepten as { naam: string }).naam,
           }
         }
       }
