@@ -66,6 +66,66 @@ export default function Boodschappenlijst({ huishoudenId }: { huishoudenId: stri
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [huishoudenId])
 
+  // ── Real-time synchronisatie (B-05) ──────────────────────────────────────────
+  // Luistert naar wijzigingen van andere gezinsleden op dezelfde lijst.
+  // Handlers mergen op id en zijn idempotent, zodat de echo van de eigen
+  // optimistische updates geen dubbele rijen of glitches veroorzaakt.
+
+  useEffect(() => {
+    const supabase = createClient()
+    const kanaal = supabase
+      .channel(`boodschappen:${huishoudenId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'boodschappenlijst_items',
+          filter: `huishouden_id=eq.${huishoudenId}`,
+        },
+        payload => {
+          if (payload.eventType === 'INSERT') {
+            const r = payload.new
+            const nieuw: Item = {
+              id: r.id,
+              naam: r.naam,
+              hoeveelheid: r.hoeveelheid,
+              eenheid: r.eenheid,
+              afgevinkt: r.afgevinkt,
+              bron: r.bron as 'weekmenu' | 'handmatig',
+              recept_naam: r.recept_naam,
+            }
+            setItems(prev => prev.some(i => i.id === nieuw.id) ? prev : [...prev, nieuw])
+          } else if (payload.eventType === 'UPDATE') {
+            const r = payload.new
+            setItems(prev => prev.map(i =>
+              i.id === r.id
+                ? {
+                    id: r.id,
+                    naam: r.naam,
+                    hoeveelheid: r.hoeveelheid,
+                    eenheid: r.eenheid,
+                    afgevinkt: r.afgevinkt,
+                    bron: r.bron as 'weekmenu' | 'handmatig',
+                    recept_naam: r.recept_naam,
+                  }
+                : i
+            ))
+          } else if (payload.eventType === 'DELETE') {
+            const verwijderdId = (payload.old as { id?: string }).id
+            if (verwijderdId) {
+              setItems(prev => prev.filter(i => i.id !== verwijderdId))
+            }
+          }
+        }
+      )
+      .subscribe()
+
+    return () => {
+      supabase.removeChannel(kanaal)
+    }
+  }, [huishoudenId])
+
   // ── Weekmenu laden ─────────────────────────────────────────────────────────
 
   useEffect(() => {
