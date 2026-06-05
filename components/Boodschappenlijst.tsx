@@ -45,6 +45,9 @@ export default function Boodschappenlijst({ huishoudenId }: { huishoudenId: stri
   const [ingEenheid, setIngEenheid] = useState('')
   const [toevoegen, setToevoegen] = useState(false)
 
+  // Delen / exporteren
+  const [deelStatus, setDeelStatus] = useState<'idle' | 'gekopieerd'>('idle')
+
   // ── Items laden (los functienamet zodat genereer het ook kan aanroepen) ───────
 
   async function laadItems() {
@@ -373,6 +376,63 @@ export default function Boodschappenlijst({ huishoudenId }: { huishoudenId: stri
       .eq('huishouden_id', huishoudenId)
   }
 
+  // ── Delen / exporteren (B-06) ────────────────────────────────────────────────
+
+  function regelTekst(item: Item): string {
+    const hoev = item.hoeveelheid
+      ? `${item.hoeveelheid}${item.eenheid ? ` ${item.eenheid}` : ''} `
+      : ''
+    const vinkje = item.afgevinkt ? '✓ ' : '• '
+    return `${vinkje}${hoev}${item.naam}`
+  }
+
+  function bouwLijstTekst(): string {
+    const regels: string[] = ['🛒 Boodschappenlijst', '']
+
+    const weekItems = items.filter(i => i.bron === 'weekmenu')
+    const handItems = items.filter(i => i.bron === 'handmatig')
+
+    if (weekItems.length > 0) {
+      regels.push('Uit het weekmenu')
+      regels.push(...weekItems.map(regelTekst))
+      regels.push('')
+    }
+    if (handItems.length > 0) {
+      regels.push('Handmatig toegevoegd')
+      regels.push(...handItems.map(regelTekst))
+      regels.push('')
+    }
+
+    return regels.join('\n').trimEnd()
+  }
+
+  async function deelLijst() {
+    if (items.length === 0) return
+    const tekst = bouwLijstTekst()
+
+    // Web Share API (mobiel + sommige desktops) — valt terug op klembord
+    const nav = navigator as Navigator & {
+      share?: (data: { title?: string; text?: string }) => Promise<void>
+    }
+
+    if (nav.share) {
+      try {
+        await nav.share({ title: 'Boodschappenlijst', text: tekst })
+        return
+      } catch {
+        // Gebruiker annuleerde de share-sheet of het lukte niet — val terug op klembord
+      }
+    }
+
+    try {
+      await navigator.clipboard.writeText(tekst)
+      setDeelStatus('gekopieerd')
+      setTimeout(() => setDeelStatus('idle'), 2000)
+    } catch {
+      // Klembord niet beschikbaar — stil falen
+    }
+  }
+
   // ── Helpers ────────────────────────────────────────────────────────────────
 
   function toggleDag(datum: string) {
@@ -405,6 +465,29 @@ export default function Boodschappenlijst({ huishoudenId }: { huishoudenId: stri
       <div className="flex items-center justify-between mb-5">
         <h1>Boodschappenlijst</h1>
         <div className="flex items-center gap-3">
+          {items.length > 0 && (
+            <button
+              onClick={deelLijst}
+              className="text-sm text-slate-500 hover:text-primary-600 transition-colors flex items-center gap-1.5"
+              title="Lijst delen of kopiëren"
+            >
+              {deelStatus === 'gekopieerd' ? (
+                <>
+                  <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4 text-emerald-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                  </svg>
+                  Gekopieerd
+                </>
+              ) : (
+                <>
+                  <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
+                  </svg>
+                  Delen
+                </>
+              )}
+            </button>
+          )}
           {aantalAfgevinkt > 0 && (
             <button
               onClick={wisVinkjes}
