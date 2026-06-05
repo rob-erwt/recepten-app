@@ -158,15 +158,50 @@ export default function Boodschappenlijst({ huishoudenId }: { huishoudenId: stri
       const naamMap: Record<string, string> = {}
       for (const d of geselecteerdeDagen) naamMap[d.recept_id!] = d.recept_naam!
 
-      // Voeg alle ingrediënten in als boodschappenlijst-items
-      const nieuweItems = (ingredienten ?? []).map(ing => ({
+      // Samenvoegen: zelfde naam (case-insensitive) + zelfde eenheid → optellen
+      type SamengesteldItem = {
+        naam: string
+        hoeveelheid: number | null
+        eenheid: string | null
+        receptNamen: string[]
+        kanOptellen: boolean
+      }
+      const gegroepeerd = new Map<string, SamengesteldItem>()
+
+      for (const ing of ingredienten ?? []) {
+        const sleutel = `${ing.naam.toLowerCase().trim()}|${(ing.eenheid ?? '').toLowerCase().trim()}`
+        const receptNaam = naamMap[ing.recept_id] ?? null
+
+        if (gegroepeerd.has(sleutel)) {
+          const bestaand = gegroepeerd.get(sleutel)!
+          if (bestaand.kanOptellen && ing.hoeveelheid !== null && bestaand.hoeveelheid !== null) {
+            bestaand.hoeveelheid += ing.hoeveelheid
+          } else {
+            bestaand.hoeveelheid = null
+            bestaand.kanOptellen = false
+          }
+          if (receptNaam && !bestaand.receptNamen.includes(receptNaam)) {
+            bestaand.receptNamen.push(receptNaam)
+          }
+        } else {
+          gegroepeerd.set(sleutel, {
+            naam: ing.naam,
+            hoeveelheid: ing.hoeveelheid,
+            eenheid: ing.eenheid,
+            receptNamen: receptNaam ? [receptNaam] : [],
+            kanOptellen: true,
+          })
+        }
+      }
+
+      const nieuweItems = Array.from(gegroepeerd.values()).map(item => ({
         huishouden_id: huishoudenId,
-        naam: ing.naam,
-        hoeveelheid: ing.hoeveelheid != null ? String(ing.hoeveelheid) : null,
-        eenheid: ing.eenheid,
+        naam: item.naam,
+        hoeveelheid: item.hoeveelheid != null ? String(item.hoeveelheid) : null,
+        eenheid: item.eenheid,
         afgevinkt: false,
         bron: 'weekmenu' as const,
-        recept_naam: naamMap[ing.recept_id] ?? null,
+        recept_naam: item.receptNamen.join(' & ') || null,
       }))
 
       if (nieuweItems.length > 0) {
