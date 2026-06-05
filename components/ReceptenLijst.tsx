@@ -44,6 +44,7 @@ export default function ReceptenLijst() {
   const [ingChips, setIngChips] = useState<string[]>([])
 
   const [actieveCategorieen, setActieveCategorieen] = useState<string[]>([])
+  const [maxBereidingstijd, setMaxBereidingstijd] = useState<number | null>(null)
   const [paginaNr, setPaginaNr] = useState(1)
 
   const [recepten, setRecepten] = useState<ReceptKaartZoek[]>([])
@@ -161,6 +162,9 @@ export default function ReceptenLijst() {
         if (gefilterdOpIds !== null) {
           query = query.in('id', gefilterdOpIds)
         }
+        if (maxBereidingstijd !== null) {
+          query = query.lte('bereidingstijd_min', maxBereidingstijd).not('bereidingstijd_min', 'is', null)
+        }
 
         const { data, count, error } = await query
 
@@ -204,7 +208,7 @@ export default function ReceptenLijst() {
       }
     }
     laadRecepten()
-  }, [debouncedZoekterm, ingChips, actieveCategorieen, paginaNr])
+  }, [debouncedZoekterm, ingChips, actieveCategorieen, maxBereidingstijd, paginaNr])
 
   // ── Chip-beheer ─────────────────────────────────────────────────────────────
 
@@ -244,14 +248,21 @@ export default function ReceptenLijst() {
   function wisFilters() {
     setPaginaNr(1)
     setActieveCategorieen([])
+    setMaxBereidingstijd(null)
     setZoekterm('')
     setDebouncedZoekterm('')
     setIngChips([])
     setIngInput('')
   }
 
+  const TIJDOPTIES = [
+    { label: '≤ 15 min', waarde: 15 },
+    { label: '≤ 30 min', waarde: 30 },
+    { label: '≤ 60 min', waarde: 60 },
+  ]
+
   const heeftActieveFilters =
-    zoekterm.length > 0 || ingChips.length > 0 || actieveCategorieen.length > 0
+    zoekterm.length > 0 || ingChips.length > 0 || actieveCategorieen.length > 0 || maxBereidingstijd !== null
   const aantalPaginas = Math.max(1, Math.ceil(aantalResultaten / PAGINA_GROOTTE))
 
   return (
@@ -339,49 +350,74 @@ export default function ReceptenLijst() {
         )}
       </div>
 
-      {/* ── Categoriefilter ── */}
-      {categorieen.length > 0 && (
-        <div className="flex items-center gap-2 flex-wrap mb-5">
-          {categorieen.map(cat => {
-            const actief = actieveCategorieen.includes(cat.id)
-            return (
-              <button
-                key={cat.id}
-                onClick={() => toggleCategorie(cat.id)}
-                className={`px-3 py-1.5 rounded-full text-sm font-medium border transition-all ${
-                  actief
-                    ? 'bg-primary-500 border-primary-500 text-white shadow-sm'
-                    : 'bg-white border-slate-200 text-slate-600 hover:border-primary-300 hover:text-primary-700'
-                }`}
-              >
-                {cat.naam}
-              </button>
-            )
-          })}
-          {heeftActieveFilters && (
+      {/* ── Categoriefilter + bereidingstijdfilter ── */}
+      <div className="flex items-center gap-2 flex-wrap mb-5">
+        {categorieen.map(cat => {
+          const actief = actieveCategorieen.includes(cat.id)
+          return (
             <button
-              onClick={wisFilters}
-              className="px-3 py-1.5 rounded-full text-sm text-slate-400 hover:text-red-500 transition-colors flex items-center gap-1"
+              key={cat.id}
+              onClick={() => toggleCategorie(cat.id)}
+              className={`px-3 py-1.5 rounded-full text-sm font-medium border transition-all ${
+                actief
+                  ? 'bg-primary-500 border-primary-500 text-white shadow-sm'
+                  : 'bg-white border-slate-200 text-slate-600 hover:border-primary-300 hover:text-primary-700'
+              }`}
             >
-              <svg xmlns="http://www.w3.org/2000/svg" className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-              </svg>
-              Alles wissen
+              {cat.naam}
             </button>
-          )}
+          )
+        })}
+
+        {/* Scheidslijn tussen categorieen en tijdfilter (alleen als er categorieën zijn) */}
+        {categorieen.length > 0 && (
           <span className="text-slate-200 select-none">|</span>
-          <Link
-            href="/recepten/categorieen"
-            className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors"
-            title="Categorieën beheren"
+        )}
+
+        {/* Bereidingstijdfilter */}
+        {TIJDOPTIES.map(opt => (
+          <button
+            key={opt.waarde}
+            onClick={() => {
+              setPaginaNr(1)
+              setMaxBereidingstijd(prev => prev === opt.waarde ? null : opt.waarde)
+            }}
+            className={`px-3 py-1.5 rounded-full text-sm font-medium border transition-all flex items-center gap-1.5 ${
+              maxBereidingstijd === opt.waarde
+                ? 'bg-primary-500 border-primary-500 text-white shadow-sm'
+                : 'bg-white border-slate-200 text-slate-600 hover:border-primary-300 hover:text-primary-700'
+            }`}
           >
-            <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-              <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+            <svg xmlns="http://www.w3.org/2000/svg" className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg>
-          </Link>
-        </div>
-      )}
+            {opt.label}
+          </button>
+        ))}
+
+        {heeftActieveFilters && (
+          <button
+            onClick={wisFilters}
+            className="px-3 py-1.5 rounded-full text-sm text-slate-400 hover:text-red-500 transition-colors flex items-center gap-1"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+            Alles wissen
+          </button>
+        )}
+        <span className="text-slate-200 select-none">|</span>
+        <Link
+          href="/recepten/categorieen"
+          className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors"
+          title="Categorieën beheren"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+            <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+          </svg>
+        </Link>
+      </div>
 
       {/* ── States ── */}
       {laden && (
