@@ -13,6 +13,7 @@ export default function WeekMenuOverzicht({ huishoudenId }: { huishoudenId: stri
   const [weekmenu, setWeekmenu] = useState<Record<string, WeekMenuEntry>>({})
   const [laden, setLaden] = useState(true)
   const [refresh, setRefresh] = useState(0)
+  const [kopierenLaden, setKopierenLaden] = useState(false)
 
   // Receptkiezer
   const [kiezerDatum, setKiezerDatum] = useState<string | null>(null)
@@ -124,9 +125,35 @@ export default function WeekMenuOverzicht({ huishoudenId }: { huishoudenId: stri
     setZoekterm('')
   }
 
+  async function kopierenNaarVolgendeWeek() {
+    const teKopieren = Object.values(weekmenu).filter(e => e.recept_id)
+    if (teKopieren.length === 0) return
+
+    setKopierenLaden(true)
+    const supabase = createClient()
+
+    const rijen = teKopieren.map(entry => {
+      const d = new Date(entry.datum)
+      d.setDate(d.getDate() + 7)
+      return {
+        huishouden_id: huishoudenId,
+        datum: datumString(d),
+        recept_id: entry.recept_id!,
+      }
+    })
+
+    await supabase
+      .from('weekmenu')
+      .upsert(rijen, { onConflict: 'huishouden_id,datum' })
+
+    setKopierenLaden(false)
+    setWeekOffset(o => o + 1)
+  }
+
   // ── Afgeleide waarden ─────────────────────────────────────────────────────
 
   const weekLabel = `${dagen[0].toLocaleDateString('nl-NL', { day: 'numeric', month: 'short' })} – ${dagen[6].toLocaleDateString('nl-NL', { day: 'numeric', month: 'short', year: weekOffset !== 0 && dagen[0].getFullYear() !== new Date().getFullYear() ? 'numeric' : undefined })}`
+  const heeftEntries = Object.values(weekmenu).some(e => e.recept_id)
 
   const kiezerDagIndex = kiezerDatum ? dagen.findIndex(d => datumString(d) === kiezerDatum) : -1
 
@@ -177,6 +204,26 @@ export default function WeekMenuOverzicht({ huishoudenId }: { huishoudenId: stri
           </svg>
         </button>
       </div>
+
+      {/* Kopieerknop */}
+      {!laden && heeftEntries && (
+        <div className="flex justify-end mb-3">
+          <button
+            onClick={kopierenNaarVolgendeWeek}
+            disabled={kopierenLaden}
+            className="flex items-center gap-1.5 text-sm text-slate-500 hover:text-primary-600 transition-colors disabled:opacity-50"
+          >
+            {kopierenLaden ? (
+              <div className="w-4 h-4 border-2 border-slate-300 border-t-primary-500 rounded-full animate-spin" />
+            ) : (
+              <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+              </svg>
+            )}
+            Kopieer naar volgende week
+          </button>
+        </div>
+      )}
 
       {/* Dagenoverzicht */}
       {laden ? (
