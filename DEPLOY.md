@@ -51,41 +51,89 @@ meteen inloggen zonder bevestigingsmail.
 
 Supabase Dashboard → **Authentication** → **URL Configuration**:
 
-- **Site URL**: `https://jouw-domein.nl`
+- **Site URL**: `https://kook-boek.nl`
 - **Redirect URLs**: voeg toe
-  - `https://jouw-domein.nl/**`
+  - `https://kook-boek.nl/**`
   - `https://recepten-app.vercel.app/**` (de Vercel-URL blijft ook werken)
+
+Zolang het domein nog niet werkt (zie stap 5) kun je de Vercel-URL tijdelijk als
+Site URL gebruiken en dat later omzetten.
 
 Zonder dit wijzen wachtwoord-herstelmails nog naar `http://localhost:3000`.
 
-## 5. Eigen domein koppelen
+## 5. Domein koppelen: kook-boek.nl
 
-Vercel → project → **Settings** → **Domains** → domein toevoegen. Vercel toont
-daarna de exacte DNS-records die je bij je registrar moet zetten. Meestal:
+Het domein staat bij **TransIP** (nameservers `ns0.transip.net`, `ns1.transip.nl`,
+`ns2.transip.eu`), met DNSSEC aan.
 
-**Subdomein** (bijv. `recepten.jouw-domein.nl`):
+### 5a. Domein toevoegen in Vercel
 
-| Type | Naam | Waarde |
-| --- | --- | --- |
-| CNAME | `recepten` | `cname.vercel-dns.com` |
+Vercel → project → **Settings** → **Domains** → voeg beide toe:
 
-**Apex-domein** (bijv. `jouw-domein.nl`):
+- `kook-boek.nl`
+- `www.kook-boek.nl`
 
-| Type | Naam | Waarde |
-| --- | --- | --- |
-| A | `@` | `76.76.21.21` |
+Kies `kook-boek.nl` als primair domein; Vercel zet dan automatisch een redirect
+van `www` naar het apex-domein.
 
-Neem de waarden over die Vercel zelf laat zien — die zijn leidend. DNS-propagatie
-duurt meestal minuten, soms tot een uur. Het TLS-certificaat regelt Vercel
-automatisch zodra de records kloppen.
+### 5b. DNS-records bij TransIP
 
-Werkt het domein? Ga terug naar stap 4 en zet de Site URL op het definitieve
-domein.
+TransIP-controlepaneel → **Domeinen** → `kook-boek.nl` → **DNS**. Verwijder de
+standaard-parkeerrecords voor `@` en `www` en zet neer:
+
+| Type | Naam | TTL | Waarde |
+| --- | --- | --- | --- |
+| A | `@` | 300 | *het IP-adres dat Vercel toont* |
+| CNAME | `www` | 300 | `cname.vercel-dns.com.` |
+
+Het apex-IP moet je **overnemen uit het Vercel-dashboard** en niet uit een
+tutorial: Vercel heeft meerdere apex-IP's in gebruik en toont per project het
+juiste. Let bij TransIP op de afsluitende punt achter de CNAME-waarde.
+
+Een apex-domein kan geen CNAME hebben (DNS-standaard), vandaar het A-record voor
+`@` en een CNAME alleen voor `www`.
+
+### 5c. DNSSEC en nameservers
+
+**Laat de nameservers op TransIP staan.** Records aanpassen binnen TransIP is
+veilig: TransIP hertekent de zone zelf. Zou je de nameservers naar Vercel
+verzetten zonder eerst DNSSEC uit te schakelen bij TransIP, dan wordt het domein
+onbereikbaar met een validatiefout — en dat is een storing die je niet met een
+snelle wijziging terugdraait, omdat de oude DS-sleutel nog in de caches van
+resolvers zit.
+
+### 5d. Mail
+
+Er staan nu geen MX-records op het domein, dus je breekt niets. Wil je later
+e-mail op `kook-boek.nl`, dan kun je MX-records naast de Vercel-records zetten:
+die bijten elkaar niet.
+
+### 5e. Wachten en controleren
+
+Het domein is pas op 2026-08-20 geregistreerd en de delegatie was op dat moment
+nog niet zichtbaar bij SIDN. Zolang dat zo is, kan geen enkel record werken —
+dat is normaal en lost zichzelf op, meestal binnen enkele uren.
+
+Controleren of de delegatie live is:
+
+```bash
+dig +short NS kook-boek.nl
+```
+
+Zodra daar de TransIP-nameservers verschijnen, controleer je de records zelf:
+
+```bash
+dig +short A kook-boek.nl && dig +short CNAME www.kook-boek.nl
+```
+
+Vercel vraagt het TLS-certificaat automatisch aan zodra de records kloppen. Ga
+daarna terug naar stap 4 en zet de Site URL op `https://kook-boek.nl`.
 
 ## 6. Controleren na de deploy
 
-- [ ] `https://<domein>/login` laadt en inloggen met je bestaande account werkt
-- [ ] `https://<domein>/register` toont "Registreren gaat op uitnodiging"
+- [ ] `https://kook-boek.nl` laadt (en `https://www.kook-boek.nl` stuurt door)
+- [ ] `https://kook-boek.nl/login` werkt met je bestaande account
+- [ ] `https://kook-boek.nl/register` toont "Registreren gaat op uitnodiging"
 - [ ] Recepten, weekmenu en boodschappenlijst laden met je eigen data
 - [ ] Instellingen → uitnodiging aanmaken geeft een link op het nieuwe domein
       (niet op `localhost`)
