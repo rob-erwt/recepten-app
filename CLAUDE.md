@@ -23,8 +23,10 @@ Vereist in `.env.local`:
 ```
 NEXT_PUBLIC_SUPABASE_URL=
 NEXT_PUBLIC_SUPABASE_ANON_KEY=
-SUPABASE_SERVICE_ROLE_KEY=   # optioneel — alleen voor server-side foto-upload bij import
+SUPABASE_SERVICE_ROLE_KEY=   # vereist — registratie op uitnodiging + foto-upload bij import
 ```
+
+Deployen naar Vercel: zie [DEPLOY.md](DEPLOY.md).
 
 ## Architectuur
 
@@ -37,10 +39,24 @@ app/
     recepten/      ← overzicht, detail, nieuw, bewerken, importeren
     recepten/categorieen/
     weekmenu/
-  api/import-recept/route.ts  ← server-side URL-import endpoint
+  api/import-recept/route.ts          ← server-side URL-import endpoint
+  api/uitnodiging/registreer/route.ts ← server-side account aanmaken op uitnodiging
 ```
 
 `middleware.ts` bewaakt alle routes: `/recepten/*` en `/weekmenu` vereisen een ingelogde gebruiker.
+
+### Registratie is invite-only
+
+Zelfregistratie staat uit in Supabase Auth ("Allow new users to sign up"), dus
+`supabase.auth.signUp()` werkt niet vanuit de browser. `/register` is een statische
+pagina die naar de uitnodigingsflow verwijst.
+
+Accounts worden aangemaakt door `POST /api/uitnodiging/registreer`: die valideert het
+token via de `valideer_uitnodiging` RPC en maakt de gebruiker aan met
+`auth.admin.createUser` (service-role-key, `email_confirm: true`). De DB-trigger
+`handle_new_user` leest `uitnodiging_token` uit de metadata en koppelt de gebruiker aan
+het bestaande huishouden in plaats van een nieuw huishouden te maken. Daarna logt de
+client in met `signInWithPassword`.
 
 ### Supabase-clients
 

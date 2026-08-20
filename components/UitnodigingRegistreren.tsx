@@ -17,63 +17,43 @@ export default function UitnodigingRegistreren({ token, huishoudenNaam }: Props)
   const [wachtwoord, setWachtwoord] = useState('')
   const [laden, setLaden] = useState(false)
   const [fout, setFout] = useState('')
-  const [bevestigingNodig, setBevestigingNodig] = useState(false)
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setFout('')
     setLaden(true)
 
-    const supabase = createClient()
+    // Account aanmaken gaat server-side: zelfregistratie staat uit in Supabase,
+    // dus alleen een geldig uitnodigingstoken levert een nieuw account op.
+    const response = await fetch('/api/uitnodiging/registreer', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token, naam, email, wachtwoord }),
+    })
 
-    const { data, error } = await supabase.auth.signUp({
+    if (!response.ok) {
+      const { fout: bericht } = await response.json().catch(() => ({ fout: null }))
+      setFout(bericht ?? 'Account aanmaken is mislukt. Probeer het opnieuw.')
+      setLaden(false)
+      return
+    }
+
+    // Het account is direct bevestigd, dus meteen inloggen.
+    const supabase = createClient()
+    const { error } = await supabase.auth.signInWithPassword({
       email,
       password: wachtwoord,
-      options: {
-        // De uitnodiging_token in de metadata wordt door de DB-trigger opgepikt:
-        // de nieuwe gebruiker wordt automatisch gekoppeld aan het bestaande huishouden.
-        data: {
-          naam,
-          uitnodiging_token: token,
-        },
-      },
     })
 
     setLaden(false)
 
     if (error) {
-      if (error.message.includes('already registered')) {
-        setFout('Dit e-mailadres is al in gebruik. Probeer in te loggen.')
-      } else {
-        setFout(error.message)
-      }
+      setFout('Je account is aangemaakt, maar inloggen lukte niet. Probeer het via de inlogpagina.')
       return
     }
 
-    // Supabase kan e-mailbevestiging vereisen; controleer of de sessie direct actief is.
-    if (data.session) {
-      router.push('/recepten')
-      router.refresh()
-    } else {
-      setBevestigingNodig(true)
-    }
-  }
-
-  if (bevestigingNodig) {
-    return (
-      <div className="card p-8 text-center">
-        <div className="inline-flex items-center justify-center w-12 h-12 rounded-2xl bg-emerald-100 mb-4">
-          <svg xmlns="http://www.w3.org/2000/svg" className="w-6 h-6 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-          </svg>
-        </div>
-        <h2 className="text-lg font-semibold text-slate-800 mb-2">Bevestig je e-mail</h2>
-        <p className="text-sm text-slate-500">
-          We hebben een bevestigingsmail gestuurd naar <strong>{email}</strong>.
-          Klik op de link in de mail om je account te activeren en in te loggen.
-        </p>
-      </div>
-    )
+    router.push('/recepten')
+    router.refresh()
   }
 
   return (
@@ -129,11 +109,12 @@ export default function UitnodigingRegistreren({ token, huishoudenNaam }: Props)
             id="wachtwoord"
             type="password"
             className="input"
-            placeholder="Minimaal 6 tekens"
+            placeholder="Minimaal 8 tekens"
             value={wachtwoord}
             onChange={e => setWachtwoord(e.target.value)}
             required
-            minLength={6}
+            minLength={8}
+            autoComplete="new-password"
           />
         </div>
 

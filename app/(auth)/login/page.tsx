@@ -75,9 +75,9 @@ export default function LoginPage() {
       </form>
 
       <p className="text-sm text-slate-500 text-center mt-5">
-        Nog geen account?{' '}
+        Nog geen account? Registreren gaat{' '}
         <Link href="/register" className="text-primary-600 font-medium hover:underline">
-          Registreren
+          op uitnodiging
         </Link>
       </p>
     </div>
