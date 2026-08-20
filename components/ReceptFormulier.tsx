@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import type { Recept, ReceptInvoer, IngredientInvoer, StapInvoer, Categorie } from '@/lib/types'
-import { naamGelijkenis, ingredientenOverlap, dubbeleScore, DREMPELWAARDE, type BestaandRecept } from '@/lib/duplicaten'
+import { dubbeleScore, DREMPELWAARDE, type BestaandRecept } from '@/lib/duplicaten'
 
 type Props = {
   recept?: Recept              // bewerk-modus (heeft DB-ids)
