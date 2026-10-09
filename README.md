@@ -4,6 +4,34 @@ Een minimalistische recepten-app voor gezinnen, gebouwd met Next.js 14 en Supaba
 
 ---
 
+## 📊 Project Status
+
+| Categorie | Afgerond | Open | % Compleet |
+|-----------|----------|------|-------------|
+| **User Stories** | 26/32 | 6 | **81%** |
+| **Tech Debt** | 2/3 | 1 | **67%** |
+| **Tests** | 81/81 | 0 | **100%** |
+
+🔗 **[Open Issues →](https://github.com/rob-erwt/recepten-app/issues)** | 📋 **[Project Board →](https://github.com/rob-erwt/recepten-app/projects)**
+
+---
+
+## 🎯 Openstaande Prioriteiten
+
+### 🔴 Must Have (Kritiek)
+- **#3** – [US-U-01-3] Bevestigingsmail bij registratie
+- **#4** – [US-U-02-3] Wachtwoord-resetmail implementeren
+
+### 🟡 Should Have
+- **#8** – [T-03] Type-veilige Supabase-queries via CLI-codegeneratie
+
+### 🟢 Could Have
+- **#5** – [US-R-07] Eigen categorieën beheren (hernoemen/verwijderen)
+- **#6** – [US-B-06-3] Deellink tijdslimiet van 24 uur
+- **#7** – [US-R-05] Recept importeren via foto (OCR/AI)
+
+---
+
 ## Functionaliteiten
 
 ### Authenticatie
@@ -25,9 +53,31 @@ Een minimalistische recepten-app voor gezinnen, gebouwd met Next.js 14 en Supaba
 
 ### Categorieën
 - Vijf standaardcategorieën: Ontbijt, Lunch, Diner, Snack, Dessert
-- Eigen categorieën toevoegen, hernoemen en verwijderen
+- Eigen categorieën toevoegen
 - Recepten aan meerdere categorieën koppelen
 - Filteren op categorie via chips in het receptenoverzicht
+
+### Zoeken & Filteren
+- Zoeken op receptnaam (live, met debounce)
+- Filteren op categorie
+- Zoeken op ingrediënten (AND-logica)
+- Filteren op bereidingstijd (≤ 15/30/60 min)
+- Server-side filteren en pagineren (25 recepten per pagina)
+
+### Maaltijdplanning (Weekmenu)
+- Weekoverzicht van zaterdag t/m vrijdag
+- Recepten koppelen aan dagen
+- Weekmenu kopiëren naar volgende week
+- Real-time synchronisatie tussen gezinsleden
+
+### Boodschappenlijst
+- Automatisch genereren vanuit weekmenu
+- Ingrediënten samenvoegen (200g + 300g = 500g)
+- Handmatig items toevoegen
+- Items afvinken
+- Real-time synchronisatie tussen gezinsleden
+- Exporteren als platte tekst
+- Deellink genereren (read-only)
 
 ---
 
@@ -36,9 +86,11 @@ Een minimalistische recepten-app voor gezinnen, gebouwd met Next.js 14 en Supaba
 | Onderdeel | Technologie |
 |---|---|
 | Framework | Next.js 14 (App Router) |
-| Backend / database | Supabase (PostgreSQL + Auth + Storage) |
+| Backend / database | Supabase (PostgreSQL + Auth + Storage + Realtime) |
 | Styling | Tailwind CSS v3 |
 | Taal | TypeScript |
+| Testen | Vitest |
+| Linten | ESLint |
 
 ---
 
@@ -61,8 +113,8 @@ npm install
 1. Maak een nieuw project aan op [supabase.com](https://supabase.com)
 2. Ga naar **SQL Editor** en voer het volgende script uit:
 
-```
-schema.sql   ← alle tabellen, RLS-beleid, triggers, functies en seed-data
+```sql
+schema.sql   → alle tabellen, RLS-beleid, triggers, functies en seed-data
 ```
 
 > **Let op:** Als `schema.sql` een fout geeft op de trigger-regel (`permission denied for schema auth`), verwijder dan de twee `create trigger`-regels onderaan het script, run het opnieuw en stel de trigger daarna in via **Supabase Dashboard → Authentication → Hooks → "Run a function after user creation" → `handle_new_user`**.
@@ -97,25 +149,60 @@ Open [http://localhost:3000](http://localhost:3000) in je browser. Registreer ee
 
 ```
 app/
-  (auth)/             ← login & registratie pagina's
+  (auth)/             → login & registratie pagina's
   (app)/
-    recepten/         ← overzicht, detail, nieuw, bewerken, importeren
-    recepten/categorieen/  ← categoriebeheer
+    recepten/         → overzicht, detail, nieuw, bewerken, importeren
+    recepten/categorieen/  → categoriebeheer
+    weekmenu/          → weekplanning
+    boodschappenlijst/  → boodschappenlijst
   api/
-    import-recept/    ← server-side URL-import endpoint
-components/           ← herbruikbare React-componenten
+    import-recept/    → server-side URL-import endpoint
+components/           → herbruikbare React-componenten
+  ReceptenLijst.tsx         → receptenoverzicht (client-side UI)
+  ReceptenLijstServer.tsx  → server-side data fetching (T-01)
+  ReceptFormulier.tsx      → recept toevoegen/bewerken
+  Boodschappenlijst.tsx    → boodschappenlijst met real-time sync
+  WeekMenuOverzicht.tsx    → weekmenu
 lib/
-  supabase/           ← Supabase client (browser + server)
-  types.ts            ← gedeelde TypeScript-types
-middleware.ts         ← routebescherming (auth guard)
-schema.sql            ← volledig databaseschema (tabellen, RLS, triggers, seed)
+  supabase/           → Supabase client (browser + server)
+  types.ts            → gedeelde TypeScript-types
+  database.types.ts   → Supabase type definities (gegenereerd)
+  duplicaten.ts       → ingrediënten samenvoegen logica
+  paginering.ts       → pagineringsutilities
+middleware.ts         → routebescherming (auth guard)
+schema.sql            → volledig databaseschema
+migration_*.sql       → losse migraties (worden geconsolideerd in schema.sql)
+docs/                 → projectdocumentatie
+  TECH-DEBT.md        → tech debt overzicht
 ```
+
+---
+
+## Scripts
+
+| Script | Beschrijving |
+|--------|--------------|
+| `npm run dev` | Start development server |
+| `npm run build` | Build voor productie |
+| `npm run start` | Start productie server |
+| `npm run lint` | ESLint controleren |
+| `npm test` | Vitest tests uitvoeren |
+| `npm run gen-types` | Supabase types genereren |
 
 ---
 
 ## Omgevingsvariabelen overzicht
 
 Zie `.env.example` voor een compleet overzicht met uitleg.
+
+---
+
+## Documentatie
+
+- [User Stories](userstories.md) — Functionele eisen en status
+- [Requirements](requirements.md) — Technische en niet-functionele eisen
+- [Tech Debt](docs/TECH-DEBT.md) — Technische verbeterpunten
+- [Deploy Handleiding](DEPLOY.md) — Productie deployment
 
 ---
 
