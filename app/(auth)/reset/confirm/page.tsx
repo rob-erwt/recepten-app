@@ -1,11 +1,11 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, Suspense } from 'react'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 
-export default function ResetConfirmPage() {
+function ResetConfirmContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const [wachtwoord, setWachtwoord] = useState('')
@@ -162,5 +162,13 @@ export default function ResetConfirmPage() {
         </Link>
       </p>
     </div>
+  )
+}
+
+export default function ResetConfirmPage() {
+  return (
+    <Suspense fallback={<div>Laden...</div>}>
+      <ResetConfirmContent />
+    </Suspense>
   )
 }
