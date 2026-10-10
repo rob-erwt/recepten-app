@@ -1,7 +1,7 @@
 # Architectuur – ReceptenApp
 
 > **Laatst bijgewerkt:** 2026-10-09
-> **Versie:** 1.0
+> **Versie:** 1.1
 
 ---
 
@@ -28,129 +28,24 @@ ReceptenApp is een **full-stack webapplicatie** gebouwd met **Next.js 14** (App 
 ## 🗺️ Architectuur Diagram
 
 ```mermaid
-graph TD
-    %% Client Components
+flowchart TB
     A[Client Browser] -->|Renders UI| B[Next.js Client Components]
-    B -->|State Management| C[React useState/useEffect]
+    B -->|State Management| C[React Hooks]
     B -->|Data Fetching| D[Server Actions]
     
-    %% Server Components
     D -->|Calls| E[Next.js Server Components]
     E -->|Direct Queries| F[Supabase Server Client]
     
-    %% Database
     F -->|SQL Queries| G[PostgreSQL]
-    G -->|Tables| H[recepten]
-    G -->|Tables| I[ingredienten]
-    G -->|Tables| J[stappen]
-    G -->|Tables| K[categorieen]
-    G -->|Tables| L[recept_categorieen]
-    G -->|Tables| M[huishoudens]
-    G -->|Tables| N[gebruikers]
-    G -->|Tables| O[weekmenu]
-    G -->|Tables| P[boodschappenlijst_items]
-    G -->|Tables| Q[uitnodigingen]
     
-    %% Auth
     A -->|Auth| R[Supabase Auth]
-    R -->|Users| S[auth.users]
-    R -->|JWT| T[Auth Tokens]
+    R -->|JWT Tokens| C
     
-    %% Storage
-    A -->|Upload| U[Supabase Storage]
-    U -->|Bucket| V[recepten-fotos]
-    
-    %% Realtime
     F -->|Subscribe| W[Supabase Realtime]
-    W -->|Changes| X[Live Updates]
-    X -->|Broadcast| B
+    W -->|Live Updates| B
     
-    %% Style
-    B -->|Classes| Y[Tailwind CSS]
-    
-    %% External
-    D -->|Import| Z[External Recipe Sites]
-    Z -->|Scrape| AA[schema.org/Recipe]
-```
-
----
-
-## 📁 Project Structuur
-
-```
-recepten-app/
-├── app/                          # Next.js App Router
-│   ├── (auth)/                   # Auth pages (login, register, uitnodiging)
-│   │   ├── login/
-│   │   │   └── page.tsx          # Inlogpagina
-│   │   ├── register/
-│   │   │   └── page.tsx          # Registratiepagina
-│   │   └── uitnodiging/
-│   │       └── [token]/
-│   │           └── page.tsx      # Uitnodigingspagina
-│   │
-│   └── (app)/                    # Auth-protected pages
-│       ├── layout.tsx            # App layout (met Nav)
-│       ├── recepten/
-│       │   ├── page.tsx          # Recepten overzicht
-│       │   ├── [id]/
-│       │   │   └── page.tsx      # Recept detail
-│       │   ├── [id]/
-│       │   │   └── bewerken/
-│       │   │       └── page.tsx  # Recept bewerken
-│       │   ├── nieuw/
-│       │   │   └── page.tsx      # Nieuw recept
-│       │   ├── importeren/
-│       │   │   └── page.tsx      # Recept importeren
-│       │   └── categorieen/
-│       │       └── page.tsx      # Categorieën beheren
-│       ├── weekmenu/
-│       │   └── page.tsx          # Weekmenu overzicht
-│       └── boodschappenlijst/
-│           └── page.tsx          # Boodschappenlijst
-│
-├── app/
-│   ├── api/                      # API Routes
-│   │   ├── import-recept/
-│   │   │   └── route.ts          # URL import endpoint
-│   │   └── uitnodiging/
-│   │       └── registreer/
-│   │           └── route.ts      # Uitnodiging registratie
-│   └── page.tsx                  # Root redirect
-│
-├── components/                   # React Components
-│   ├── Nav.tsx                  # Navigatiebalk
-│   ├── ReceptenLijst.tsx         # Receptenlijst (Client)
-│   ├── ReceptenLijstServer.tsx  # Server Action voor recepten
-│   ├── ReceptFormulier.tsx      # Recept formulier
-│   ├── ReceptWeekMenuKiezer.tsx # Weekmenu kiezer
-│   ├── WeekMenuOverzicht.tsx    # Weekmenu overzicht
-│   ├── Boodschappenlijst.tsx     # Boodschappenlijst
-│   ├── CategorieenBeheer.tsx    # Categorieën beheer
-│   ├── UitnodigingenBeheer.tsx   # Uitnodigingen beheer
-│   ├── UitnodigingRegistreren.tsx # Uitnodiging registreren
-│   ├── URLImportFormulier.tsx   # URL import formulier
-│   ├── FotoLightbox.tsx         # Foto lightbox
-│   └── VerwijderKnop.tsx        # Verwijder bevestiging
-│
-├── lib/                          # Utilities & Types
-│   ├── supabase/
-│   │   ├── client.ts            # Supabase Client (browser)
-│   │   └── server.ts            # Supabase Client (server)
-│   ├── types.ts                 # TypeScript types
-│   ├── database.types.ts        # Supabase generated types
-│   ├── paginering.ts            # Paginering utilities
-│   ├── duplicaten.ts            # Ingrediënten samenvoegen
-│   ├── week.ts                  # Week utilities
-│   └── recept-import.ts         # Recept import utilities
-│
-├── middleware.ts                 # Auth middleware
-├── schema.sql                    # Database schema
-├── migration_*.sql               # Database migrations
-└── docs/                         # Documentatie
-    ├── ACCEPTATIECRITERIA.md    # AC dashboard
-    ├── ARCHITECTURE.md           # Architectuur (dit bestand)
-    └── TECH-DEBT.md              # Tech debt overzicht
+    B -->|Upload| U[Supabase Storage]
+    U -->|Images| V[recepten-fotos bucket]
 ```
 
 ---
@@ -160,7 +55,7 @@ recepten-app/
 ### 1. Recepten Data Flow
 
 ```mermaid
-flowchart TD
+flowchart TB
     A[ReceptenLijst.tsx] -->|Filter params| B[haalRecepten Server Action]
     B -->|Query| C[Supabase]
     C -->|Recepten Data| B
@@ -187,9 +82,9 @@ flowchart TD
 ### 2. Recept Opslaan Flow (Atomisch)
 
 ```mermaid
-flowchart TD
+flowchart TB
     A[ReceptFormulier.tsx] -->|Submit| B[sla_recept_op RPC]
-    B -->|Transaction| C[PostgreSQL]
+    B -->|Start Transaction| C[PostgreSQL]
     C -->|Update recepten| D[recepten table]
     C -->|Delete ingredienten| E[ingredienten table]
     C -->|Insert ingredienten| E
@@ -197,13 +92,13 @@ flowchart TD
     C -->|Insert stappen| F
     C -->|Delete recept_categorieen| G[recept_categorieen table]
     C -->|Insert recept_categorieen| G
-    C -->|Return recept_id| B
-    B -->|recept_id| A
-    A -->|Redirect| H[/recepten/{id}]
+    C -->|Commit Transaction| B
+    B -->|Return recept_id| A
+    A -->|Redirect| H[recepten/id page]
 ```
 
 **Details:**
-- Alle operaties in **één PostgreSQL transactie** (T-02)
+- Alle operaties in **eén PostgreSQL transactie** (T-02)
 - Bij fout: **geen** gedeeltelijke updates
 - Gebruikt `jsonb_array_elements()` voor dynamische arrays
 
@@ -212,7 +107,7 @@ flowchart TD
 ### 3. Realtime Boodschappenlijst Flow
 
 ```mermaid
-flowchart TD
+flowchart TB
     A[Boodschappenlijst.tsx] -->|Subscribe| B[Supabase Realtime]
     B -->|Changes| C[boodschappenlijst_items table]
     C -->|Broadcast| B
@@ -232,7 +127,7 @@ flowchart TD
 
 ## 🗃️ Database Schema
 
-### Core Tabellen
+### Core Tabellen (Relaties)
 
 ```mermaid
 erDiagram
@@ -245,34 +140,50 @@ erDiagram
     
     recepten ||--o{ ingredienten : "1:N"
     recepten ||--o{ stappen : "1:N"
-    recepten ||--o{ weekmenu : "1:1"
-    
     recepten }|--|| categorieen : "M:N"
-    recepten : string id PK
-    recepten : string huishouden_id FK
-    recepten : string naam
-    recepten : text beschrijving
-    recepten : int aantal_personen
-    recepten : int bereidingstijd_min
-    recepten : text foto_url
-    
-    ingredienten : string id PK
-    ingredienten : string recept_id FK
-    ingredienten : string naam
-    ingredienten : numeric hoeveelheid
-    ingredienten : string eenheid
-    
-    stappen : string id PK
-    stappen : string recept_id FK
-    stappen : int stap_nummer
-    stappen : text omschrijving
-    
-    categorieen : string id PK
-    categorieen : string naam
-    categorieen : string huishouden_id FK
-    
-    recept_categorieen : string recept_id FK
-    recept_categorieen : string categorie_id FK
+    recepten ||--|| weekmenu : "1:1"
+```
+
+### Tabel Structuur
+
+#### recepten
+```
+id: uuid (PK)
+huishouden_id: uuid (FK)
+naam: string (not null)
+beschrijving: text (nullable)
+aantal_personen: int (nullable)
+bereidingstijd_min: int (nullable)
+foto_url: text (nullable)
+aangemaakt_door: uuid (FK to auth.users)
+aangemaakt_op: timestamptz (default now())
+bijgewerkt_op: timestamptz (default now())
+```
+
+#### ingredienten
+```
+id: uuid (PK)
+recept_id: uuid (FK)
+naam: string (not null)
+hoeveelheid: numeric (nullable)
+eenheid: string (nullable)
+volgorde: int (default 0)
+```
+
+#### stappen
+```
+id: uuid (PK)
+recept_id: uuid (FK)
+stap_nummer: int (not null)
+omschrijving: text (not null)
+```
+
+#### categorieen
+```
+id: uuid (PK)
+naam: string (not null)
+huishouden_id: uuid (FK, nullable for global categories)
+volgorde: int (default 99)
 ```
 
 ---
@@ -282,15 +193,15 @@ erDiagram
 ### Authentication Flow
 
 ```mermaid
-flowchart TD
+flowchart TB
     A[User] -->|Login| B[Supabase Auth]
     B -->|JWT Token| C[Next.js Middleware]
-    C -->|Check| D{Valid?}
+    C -->|Check| D{Valid Token?}
     D -->|Yes| E[App Pages]
     D -->|No| F[Login Page]
     
     B -->|User Data| G[auth.users table]
-    G -->|Trigger| H[handle_new_user()]
+    G -->|Trigger| H[handle_new_user function]
     H -->|Create| I[gebruikers table]
     H -->|Create| J[huishoudens table]
 ```
