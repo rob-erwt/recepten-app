@@ -74,7 +74,13 @@ export default function LoginPage() {
         </button>
       </form>
 
-      <p className="text-sm text-slate-500 text-center mt-5">
+      <p className="text-sm text-slate-500 text-center mt-4">
+        <Link href="/auth/reset" className="text-primary-600 font-medium hover:underline">
+          Wachtwoord vergeten?
+        </Link>
+      </p>
+
+      <p className="text-sm text-slate-500 text-center mt-3">
         Nog geen account? Registreren gaat{' '}
         <Link href="/register" className="text-primary-600 font-medium hover:underline">
           op uitnodiging

@@ -1,7 +1,7 @@
 # Architectuur – ReceptenApp
 
 > **Laatst bijgewerkt:** 2026-10-09
-> **Versie:** 1.1
+> **Versie:** 1.2
 
 ---
 
@@ -29,23 +29,23 @@ ReceptenApp is een **full-stack webapplicatie** gebouwd met **Next.js 14** (App 
 
 ```mermaid
 flowchart TB
-    A[Client Browser] -->|Renders UI| B[Next.js Client Components]
-    B -->|State Management| C[React Hooks]
-    B -->|Data Fetching| D[Server Actions]
+    A[Client Browser] --> B[Next.js Client Components]
+    B --> C[React Hooks]
+    B --> D[Server Actions]
     
-    D -->|Calls| E[Next.js Server Components]
-    E -->|Direct Queries| F[Supabase Server Client]
+    D --> E[Next.js Server Components]
+    E --> F[Supabase Server Client]
     
-    F -->|SQL Queries| G[PostgreSQL]
+    F --> G[PostgreSQL]
     
-    A -->|Auth| R[Supabase Auth]
-    R -->|JWT Tokens| C
+    A --> R[Supabase Auth]
+    R --> C
     
-    F -->|Subscribe| W[Supabase Realtime]
-    W -->|Live Updates| B
+    F --> W[Supabase Realtime]
+    W --> B
     
-    B -->|Upload| U[Supabase Storage]
-    U -->|Images| V[recepten-fotos bucket]
+    B --> U[Supabase Storage]
+    U --> V[recepten-fotos bucket]
 ```
 
 ---
@@ -56,14 +56,14 @@ flowchart TB
 
 ```mermaid
 flowchart TB
-    A[ReceptenLijst.tsx] -->|Filter params| B[haalRecepten Server Action]
-    B -->|Query| C[Supabase]
-    C -->|Recepten Data| B
-    B -->|Result| A
-    A -->|Render| D[UI]
+    A[ReceptenLijst.tsx] --> B[haalRecepten Server Action]
+    B --> C[Supabase]
+    C --> B
+    B --> A
+    A --> D[UI]
     
-    D -->|User Action| E[Filter/Page Change]
-    E -->|Update State| A
+    D --> E[Filter/Page Change]
+    E --> A
 ```
 
 **Details:**
@@ -83,22 +83,22 @@ flowchart TB
 
 ```mermaid
 flowchart TB
-    A[ReceptFormulier.tsx] -->|Submit| B[sla_recept_op RPC]
-    B -->|Start Transaction| C[PostgreSQL]
-    C -->|Update recepten| D[recepten table]
-    C -->|Delete ingredienten| E[ingredienten table]
-    C -->|Insert ingredienten| E
-    C -->|Delete stappen| F[stappen table]
-    C -->|Insert stappen| F
-    C -->|Delete recept_categorieen| G[recept_categorieen table]
-    C -->|Insert recept_categorieen| G
-    C -->|Commit Transaction| B
-    B -->|Return recept_id| A
-    A -->|Redirect| H[recepten/id page]
+    A[ReceptFormulier.tsx] --> B[sla_recept_op RPC]
+    B --> C[PostgreSQL Transaction]
+    C --> D[Update recepten]
+    C --> E[Delete ingredienten]
+    C --> E2[Insert ingredienten]
+    C --> F[Delete stappen]
+    C --> F2[Insert stappen]
+    C --> G[Delete recept_categorieen]
+    C --> G2[Insert recept_categorieen]
+    C --> B
+    B --> A
+    A --> H["Redirect to recepten/id"]
 ```
 
 **Details:**
-- Alle operaties in **eén PostgreSQL transactie** (T-02)
+- Alle operaties in **één PostgreSQL transactie** (T-02)
 - Bij fout: **geen** gedeeltelijke updates
 - Gebruikt `jsonb_array_elements()` voor dynamische arrays
 
@@ -108,14 +108,14 @@ flowchart TB
 
 ```mermaid
 flowchart TB
-    A[Boodschappenlijst.tsx] -->|Subscribe| B[Supabase Realtime]
-    B -->|Changes| C[boodschappenlijst_items table]
-    C -->|Broadcast| B
-    B -->|Update| A
-    A -->|Re-render| D[UI]
+    A[Boodschappenlijst.tsx] --> B[Supabase Realtime]
+    B --> C[boodschappenlijst_items table]
+    C --> B
+    B --> A
+    A --> D[UI]
     
-    E[User] -->|Add/Check/Delete| A
-    A -->|Mutate| C
+    E[User] --> A
+    A --> C
 ```
 
 **Details:**
@@ -130,60 +130,57 @@ flowchart TB
 ### Core Tabellen (Relaties)
 
 ```mermaid
-erDiagram
-    huishoudens ||--o{ gebruikers : "1:N"
-    huishoudens ||--o{ recepten : "1:N"
-    huishoudens ||--o{ categorieen : "1:N"
-    huishoudens ||--o{ weekmenu : "1:N"
-    huishoudens ||--o{ boodschappenlijst_items : "1:N"
-    huishoudens ||--o{ uitnodigingen : "1:N"
+classDiagram
+    class huishoudens {
+        +id uuid
+        +naam string
+        +aangemaakt_op timestamptz
+    }
     
-    recepten ||--o{ ingredienten : "1:N"
-    recepten ||--o{ stappen : "1:N"
-    recepten }|--|| categorieen : "M:N"
-    recepten ||--|| weekmenu : "1:1"
-```
-
-### Tabel Structuur
-
-#### recepten
-```
-id: uuid (PK)
-huishouden_id: uuid (FK)
-naam: string (not null)
-beschrijving: text (nullable)
-aantal_personen: int (nullable)
-bereidingstijd_min: int (nullable)
-foto_url: text (nullable)
-aangemaakt_door: uuid (FK to auth.users)
-aangemaakt_op: timestamptz (default now())
-bijgewerkt_op: timestamptz (default now())
-```
-
-#### ingredienten
-```
-id: uuid (PK)
-recept_id: uuid (FK)
-naam: string (not null)
-hoeveelheid: numeric (nullable)
-eenheid: string (nullable)
-volgorde: int (default 0)
-```
-
-#### stappen
-```
-id: uuid (PK)
-recept_id: uuid (FK)
-stap_nummer: int (not null)
-omschrijving: text (not null)
-```
-
-#### categorieen
-```
-id: uuid (PK)
-naam: string (not null)
-huishouden_id: uuid (FK, nullable for global categories)
-volgorde: int (default 99)
+    class gebruikers {
+        +id uuid
+        +huishouden_id uuid
+        +naam string
+        +aangemaakt_op timestamptz
+    }
+    
+    class recepten {
+        +id uuid
+        +huishouden_id uuid
+        +naam string
+        +beschrijving text
+        +aantal_personen int
+        +bereidingstijd_min int
+        +foto_url text
+    }
+    
+    class ingredienten {
+        +id uuid
+        +recept_id uuid
+        +naam string
+        +hoeveelheid numeric
+        +eenheid string
+    }
+    
+    class stappen {
+        +id uuid
+        +recept_id uuid
+        +stap_nummer int
+        +omschrijving text
+    }
+    
+    class categorieen {
+        +id uuid
+        +naam string
+        +huishouden_id uuid
+    }
+    
+    huishoudens "1" -- "N" gebruikers
+    huishoudens "1" -- "N" recepten
+    huishoudens "1" -- "N" categorieen
+    recepten "1" -- "N" ingredienten
+    recepten "1" -- "N" stappen
+    recepten "M" -- "N" categorieen
 ```
 
 ---
@@ -194,16 +191,18 @@ volgorde: int (default 99)
 
 ```mermaid
 flowchart TB
-    A[User] -->|Login| B[Supabase Auth]
-    B -->|JWT Token| C[Next.js Middleware]
-    C -->|Check| D{Valid Token?}
-    D -->|Yes| E[App Pages]
-    D -->|No| F[Login Page]
+    A[User] --> B[Supabase Auth]
+    B --> C[Next.js Middleware]
+    C --> D{Valid Token?}
+    D --> E1[Yes]
+    D --> E2[No]
+    E1 --> E[App Pages]
+    E2 --> F[Login Page]
     
-    B -->|User Data| G[auth.users table]
-    G -->|Trigger| H[handle_new_user function]
-    H -->|Create| I[gebruikers table]
-    H -->|Create| J[huishoudens table]
+    B --> G[auth.users table]
+    G --> H[handle_new_user function]
+    H --> I[gebruikers table]
+    H --> J[huishoudens table]
 ```
 
 **Details:**

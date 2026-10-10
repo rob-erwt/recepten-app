@@ -18,11 +18,11 @@
 **Acceptatiecriteria:**
 - [x] Gebruiker kan een account aanmaken met e-mailadres en wachtwoord.
 - [x] Na registratie wordt een huishouden automatisch aangemaakt.
-- [ ] Gebruiker ontvangt een bevestigingsmail. *(Open: US-U-01-3)*
+- [x] Gebruiker ontvangt een bevestigingsmail. *(US-U-01-3)*
 - [x] Bij een al bestaand e-mailadres krijgt de gebruiker een duidelijke foutmelding.
 
-**Implementatie:** `app/(auth)/register/page.tsx`, `handle_new_user()` trigger
-**Commit:** `4e8942b`, `638591`
+**Implementatie:** `app/(auth)/register/page.tsx`, `app/api/uitnodiging/registreer/route.ts`, `components/UitnodigingRegistreren.tsx`
+**Commit:** `4e8942b`, `638591` + nieuwe implementatie
 
 ---
 
@@ -32,11 +32,11 @@
 **Acceptatiecriteria:**
 - [x] Gebruiker kan inloggen met e-mailadres en wachtwoord.
 - [x] Bij onjuiste gegevens verschijnt een foutmelding (zonder aan te geven welk veld onjuist is).
-- [ ] Gebruiker kan een wachtwoord-resetmail aanvragen. *(Open: US-U-02-3)*
+- [x] Gebruiker kan een wachtwoord-resetmail aanvragen. *(US-U-02-3)*
 - [x] Na inloggen wordt de gebruiker doorgestuurd naar de receptenlijst.
 
-**Implementatie:** `app/(auth)/login/page.tsx`
-**Commit:** `4e8942b`
+**Implementatie:** `app/(auth)/login/page.tsx`, `app/(auth)/reset/page.tsx`, `app/(auth)/reset/confirm/page.tsx`
+**Commit:** `4e8942b` + nieuwe implementatie
 
 ---
 

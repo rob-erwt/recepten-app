@@ -17,6 +17,7 @@ export default function UitnodigingRegistreren({ token, huishoudenNaam }: Props)
   const [wachtwoord, setWachtwoord] = useState('')
   const [laden, setLaden] = useState(false)
   const [fout, setFout] = useState('')
+  const [succes, setSucces] = useState(false)
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -38,22 +39,32 @@ export default function UitnodigingRegistreren({ token, huishoudenNaam }: Props)
       return
     }
 
-    // Het account is direct bevestigd, dus meteen inloggen.
-    const supabase = createClient()
-    const { error } = await supabase.auth.signInWithPassword({
-      email,
-      password: wachtwoord,
-    })
-
+    // US-U-01-3: Account moet eerst bevestigd worden via e-mail
     setLaden(false)
+    setSucces(true)
+  }
 
-    if (error) {
-      setFout('Je account is aangemaakt, maar inloggen lukte niet. Probeer het via de inlogpagina.')
-      return
-    }
-
-    router.push('/recepten')
-    router.refresh()
+  if (succes) {
+    return (
+      <div className="card p-8 text-center">
+        <div className="inline-flex items-center justify-center w-12 h-12 rounded-2xl bg-primary-100 mb-4">
+          <svg xmlns="http://www.w3.org/2000/svg" className="w-6 h-6 text-primary-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+          </svg>
+        </div>
+        <h2 className="text-lg font-semibold text-slate-900 mb-2">Controleer je e-mail</h2>
+        <p className="text-sm text-slate-500 mb-5">
+          We hebben een bevestigingslink gestuurd naar <strong>{email}</strong>.
+          Klik op de link in de e-mail om je account te activeren.
+        </p>
+        <p className="text-xs text-slate-400 mb-6">
+          Heb je de e-mail niet ontvangen? Controleer je spammap of vraag een nieuw linkje aan.
+        </p>
+        <Link href="/login" className="btn-primary w-full">
+          Terug naar inloggen
+        </Link>
+      </div>
+    )
   }
 
   return (
@@ -72,7 +83,7 @@ export default function UitnodigingRegistreren({ token, huishoudenNaam }: Props)
 
       <h2 className="text-lg font-semibold text-slate-800 mb-1">Account aanmaken</h2>
       <p className="text-sm text-slate-500 mb-5">
-        Na registratie heb je direct toegang tot de recepten en het weekmenu.
+        Vul je gegevens in. Je ontvangt een bevestigingsmail om je account te activeren.
       </p>
 
       <form onSubmit={handleSubmit} className="space-y-4">
@@ -130,7 +141,7 @@ export default function UitnodigingRegistreren({ token, huishoudenNaam }: Props)
           {laden ? (
             <span className="inline-block w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />
           ) : (
-            'Account aanmaken & inloggen'
+            'Account aanmaken'
           )}
         </button>
       </form>

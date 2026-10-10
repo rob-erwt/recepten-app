@@ -14,6 +14,8 @@
 | U-01 | De app is toegankelijk via een webbrowser (geen installatie vereist). | Must have | ✅ | `4e8942b` | Next.js app |
 | U-02 | De app ondersteunt meerdere gezinsleden binnen één gedeeld account (huishouden). | Must have | ✅ | `4e8942b` | Gebruikers tabel met huishouden_id |
 | U-03 | Inloggen is vereist om recepten en planningen te bekijken of te bewerken. | Must have | ✅ | `4e8942b` | Middleware auth check |
+| U-05 | Gebruikers kunnen een wachtwoord-resetmail aanvragen. | Must have | ✅ | Nieuwe implementatie | `app/(auth)/reset/*` |
+| U-06 | Gebruikers ontvangen een bevestigingsmail na registratie. | Must have | ✅ | Nieuwe implementatie | US-U-01-3 in `app/api/uitnodiging/registreer/route.ts` |
 | U-04 | Er is een uitnodigingsfunctie waarmee gezinsleden toegang kunnen krijgen tot het gedeelde account. | Should have | ✅ | `ef68fd4` | Uitnodigingen tabel + deellinks |
 
 ---

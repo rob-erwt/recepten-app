@@ -14,6 +14,8 @@ const MIN_WACHTWOORD_LENGTE = 8
  *
  * De DB-trigger `handle_new_user` pikt `uitnodiging_token` uit de metadata op en
  * koppelt de nieuwe gebruiker aan het bestaande huishouden.
+ *
+ * US-U-01-3: Bevestigingsmail wordt verstuurd na registratie.
  */
 export async function POST(request: NextRequest) {
   const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
@@ -76,12 +78,11 @@ export async function POST(request: NextRequest) {
     )
   }
 
-  // E-mail is al bevestigd door degene die de uitnodiging stuurde; geen extra
-  // bevestigingsmail, zodat de uitgenodigde direct kan inloggen.
+  // Maak gebruiker aan met email_confirm: false voor US-U-01-3
   const { error: aanmaakFout } = await admin.auth.admin.createUser({
     email,
     password: wachtwoord,
-    email_confirm: true,
+    email_confirm: false,
     user_metadata: {
       naam: naam.trim(),
       uitnodiging_token: token,
@@ -97,6 +98,23 @@ export async function POST(request: NextRequest) {
       )
     }
     console.error('[uitnodiging] createUser mislukt:', aanmaakFout.message)
+    return NextResponse.json(
+      { fout: 'Account aanmaken is mislukt. Probeer het opnieuw.' },
+      { status: 500 }
+    )
+  }
+
+  // Stuur bevestigingsmail voor US-U-01-3
+  const { error: verifyError } = await admin.auth.admin.generateLink({
+    type: 'signup',
+    email,
+  })
+
+  if (verifyError) {
+    console.error('[uitnodiging] Bevestigingsmail versturen mislukt:', verifyError.message)
+    // Account is aangemaakt maar mail niet verstuurd - gebruiker kan niet inloggen
+    // We verwijderen het account om inconsistente staat te voorkomen
+    await admin.auth.admin.deleteUser(email)
     return NextResponse.json(
       { fout: 'Account aanmaken is mislukt. Probeer het opnieuw.' },
       { status: 500 }
