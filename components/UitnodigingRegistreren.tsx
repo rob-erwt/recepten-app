@@ -9,7 +9,6 @@ interface Props {
 }
 
 export default function UitnodigingRegistreren({ token, huishoudenNaam }: Props) {
-  const router = useRouter()
   const [naam, setNaam] = useState('')
   const [email, setEmail] = useState('')
   const [wachtwoord, setWachtwoord] = useState('')
