@@ -203,12 +203,24 @@ flowchart TB
     G --> H[handle_new_user function]
     H --> I[gebruikers table]
     H --> J[huishoudens table]
+    
+    F --> K[Request Reset Link]
+    K --> L[/auth/reset page]
+    L --> M[supabase.auth.resetPasswordForEmail]
+    M --> N[Send Email]
+    N --> O[User clicks link]
+    O --> P[/auth/reset/confirm page]
+    P --> Q[supabase.auth.exchangeCodeForSession]
+    Q --> R[Update Password]
+    R --> E[App Pages]
 ```
 
 **Details:**
 - **Middleware** (`middleware.ts`) blokkeert alle `/(app)` routes zonder valid JWT
 - **Row Level Security (RLS)** op alle tabellen
 - **Trigger** `handle_new_user()` koppelt nieuwe gebruikers aan huishouden
+- **Wachtwoord reset** (`app/(auth)/reset/*`): Gebruikers kunnen een resetlink aanvragen via `resetPasswordForEmail` en een nieuw wachtwoord instellen via `exchangeCodeForSession`
+- **Bevestigingsmail** (`app/api/uitnodiging/registreer/route.ts`): Nieuwe gebruikers ontvangen een bevestigingsmail via `admin.auth.admin.generateLink` (US-U-01-3)
 
 ---
 
@@ -250,10 +262,17 @@ flowchart TB
 
 ## 📡 API Endpoints
 
+**Auth Routes (Next.js App Router):**
+- `/auth/login` - Inlogpagina
+- `/auth/register` - Registratie informatie (uitnodiging vereist)
+- `/auth/reset` - Wachtwoord-resetlink aanvragen (US-U-02-3)
+- `/auth/reset/confirm` - Nieuw wachtwoord instellen (US-U-02-3)
+- `/auth/uitnodiging/[token]` - Account aanmaken via uitnodiging (US-U-01-3)
+
 | Endpoint | Methode | Beschrijving | Auth |
 |----------|---------|--------------|------|
 | `/api/import-recept` | POST | Recept importeren via URL | ✅ |
-| `/api/uitnodiging/registreer` | POST | Uitnodiging registreren | ❌ (anon) |
+| `/api/uitnodiging/registreer` | POST | Uitnodiging registreren + bevestigingsmail versturen (US-U-01-3) | ❌ (anon) |
 
 ---
 

@@ -22,7 +22,8 @@
 - [x] Bij een al bestaand e-mailadres krijgt de gebruiker een duidelijke foutmelding.
 
 **Implementatie:** `app/(auth)/register/page.tsx`, `app/api/uitnodiging/registreer/route.ts`, `components/UitnodigingRegistreren.tsx`
-**Commit:** `4e8942b`, `638591` + nieuwe implementatie
+**Commit:** `4e8942b`, `638591`, `8797862`, `c27add9`, `0a1a425`
+**Tests:** `lib/auth.test.ts` (bevestigingsmail flow)
 
 ---
 
@@ -36,7 +37,8 @@
 - [x] Na inloggen wordt de gebruiker doorgestuurd naar de receptenlijst.
 
 **Implementatie:** `app/(auth)/login/page.tsx`, `app/(auth)/reset/page.tsx`, `app/(auth)/reset/confirm/page.tsx`
-**Commit:** `4e8942b` + nieuwe implementatie
+**Commit:** `4e8942b`, `8797862`, `c27add9`, `0a1a425`
+**Tests:** `lib/auth.test.ts` (wachtwoord-reset flow)
 
 ---
 
