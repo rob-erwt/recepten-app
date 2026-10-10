@@ -105,9 +105,11 @@ export async function POST(request: NextRequest) {
   }
 
   // Stuur bevestigingsmail voor US-U-01-3
+  // Voor @supabase/supabase-js v2.x is password verplicht voor signup links
   const { error: verifyError } = await admin.auth.admin.generateLink({
     type: 'signup',
     email,
+    password: wachtwoord,
   })
 
   if (verifyError) {
