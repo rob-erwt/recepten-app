@@ -29,6 +29,10 @@ create table huishoudens (
   aangemaakt_op timestamptz default now()
 );
 
+grant select on public.huishoudens to anon;
+grant select, insert, update, delete on public.huishoudens to authenticated;
+grant select, insert, update, delete on public.huishoudens to service_role;
+
 -- Gebruikersprofielen (verlengt Supabase auth.users)
 create table gebruikers (
   id            uuid        primary key references auth.users(id) on delete cascade,
@@ -36,6 +40,10 @@ create table gebruikers (
   naam          text,
   aangemaakt_op timestamptz default now()
 );
+
+grant select on public.gebruikers to anon;
+grant select, insert, update, delete on public.gebruikers to authenticated;
+grant select, insert, update, delete on public.gebruikers to service_role;
 
 create table recepten (
   id                  uuid        primary key default gen_random_uuid(),
@@ -50,6 +58,10 @@ create table recepten (
   bijgewerkt_op       timestamptz default now()
 );
 
+grant select on public.recepten to anon;
+grant select, insert, update, delete on public.recepten to authenticated;
+grant select, insert, update, delete on public.recepten to service_role;
+
 create table ingredienten (
   id         uuid    primary key default gen_random_uuid(),
   recept_id  uuid    not null references recepten(id) on delete cascade,
@@ -59,12 +71,20 @@ create table ingredienten (
   volgorde   int     default 0
 );
 
+grant select on public.ingredienten to anon;
+grant select, insert, update, delete on public.ingredienten to authenticated;
+grant select, insert, update, delete on public.ingredienten to service_role;
+
 create table stappen (
   id          uuid primary key default gen_random_uuid(),
   recept_id   uuid not null references recepten(id) on delete cascade,
   stap_nummer int  not null,
   omschrijving text not null
 );
+
+grant select on public.stappen to anon;
+grant select, insert, update, delete on public.stappen to authenticated;
+grant select, insert, update, delete on public.stappen to service_role;
 
 -- Categorieën: huishouden_id = null → standaard (voor iedereen), anders eigen
 create table categorieen (
@@ -74,12 +94,20 @@ create table categorieen (
   volgorde      int  default 99
 );
 
+grant select on public.categorieen to anon;
+grant select, insert, update, delete on public.categorieen to authenticated;
+grant select, insert, update, delete on public.categorieen to service_role;
+
 -- Recept ↔ Categorie (many-to-many)
 create table recept_categorieen (
   recept_id    uuid not null references recepten(id)   on delete cascade,
   categorie_id uuid not null references categorieen(id) on delete cascade,
   primary key (recept_id, categorie_id)
 );
+
+grant select on public.recept_categorieen to anon;
+grant select, insert, update, delete on public.recept_categorieen to authenticated;
+grant select, insert, update, delete on public.recept_categorieen to service_role;
 
 create table weekmenu (
   id            uuid        primary key default gen_random_uuid(),
@@ -89,6 +117,10 @@ create table weekmenu (
   aangemaakt_op timestamptz default now(),
   unique (huishouden_id, datum)
 );
+
+grant select on public.weekmenu to anon;
+grant select, insert, update, delete on public.weekmenu to authenticated;
+grant select, insert, update, delete on public.weekmenu to service_role;
 
 create table uitnodigingen (
   id              uuid        primary key default gen_random_uuid(),
@@ -101,6 +133,10 @@ create table uitnodigingen (
   gebruikt_op     timestamptz              -- null = nog geldig
 );
 
+grant select on public.uitnodigingen to anon;
+grant select, insert, update, delete on public.uitnodigingen to authenticated;
+grant select, insert, update, delete on public.uitnodigingen to service_role;
+
 create table boodschappenlijst_items (
   id            uuid        primary key default gen_random_uuid(),
   huishouden_id uuid        not null references huishoudens(id) on delete cascade,
@@ -112,6 +148,10 @@ create table boodschappenlijst_items (
   recept_naam   text,                    -- informatief: uit welk recept
   aangemaakt_op timestamptz default now()
 );
+
+grant select on public.boodschappenlijst_items to anon;
+grant select, insert, update, delete on public.boodschappenlijst_items to authenticated;
+grant select, insert, update, delete on public.boodschappenlijst_items to service_role;
 
 
 -- ── 3. Row Level Security ─────────────────────────────────────────────────────
