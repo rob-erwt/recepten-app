@@ -11,7 +11,7 @@
 |----|-------|------------|--------|--------|------------|------------|
 | T-01 | Server-side filteren en pagineren | ⭐⭐⭐ | ✅ **Opgelost** | ⭐⭐⭐⭐ | ⭐⭐ | [c722fac](https://github.com/rob-erwt/recepten-app/commit/c722fac) |
 | T-02 | Atomische opslag via transactie | ⭐⭐⭐ | ✅ **Opgelost** | ⭐⭐⭐⭐⭐ | ⭐⭐⭐ | [0d68e07](https://github.com/rob-erwt/recepten-app/commit/0d68e07) |
-| T-03 | Type-veilige Supabase-queries | ⭐⭐ | ❌ Open | ⭐⭐⭐ | ⭐⭐ | [#8](https://github.com/rob-erwt/recepten-app/issues/8) |
+| T-03 | Type-veilige Supabase-queries | ⭐⭐ | ✅ **Opgelost** | ⭐⭐⭐ | ⭐⭐ | [0d68e07](https://github.com/rob-erwt/recepten-app/commit/0d68e07) |
 | T-04 | Consolidatie migratiebestanden | ⭐ | ⚠️ Voorgesteld | ⭐ | ⭐ | - |
 
 ---
@@ -59,41 +59,32 @@
 
 ---
 
-## ❌ Open Issues
+## ✅ Opgeloste Issues
 
 ### T-03: Type-veilige Supabase-queries via CLI-codegeneratie
 
-**Prioriteit:** ⭐⭐ (Should have)
-**GitHub Issue:** [#8](https://github.com/rob-erwt/recepten-app/issues/8)
+**Commit:** [0d68e07](https://github.com/rob-erwt/recepten-app/commit/0d68e07)
 
-**Probleem:**
-Op meerdere plekken worden `as unknown as`-casts gebruikt voor geneste Supabase-joins:
+**Wat is opgelost:**
+- `lib/database.types.ts` is handmatig gegenereerd op basis van schema.sql
+- Alle `as unknown as`-casts in Supabase queries zijn verwijderd
+- Beide Supabase clients (`client.ts` en `server.ts`) gebruiken de `<Database>` generic voor type-inferentie
+- Twee verborgen bugs gevonden en opgelost: verkeerde kolomnaam (verloopdatum→verloopt_op) en ontbrekende null-check
 
-```typescript
-// Voorbeelden in ReceptenLijst.tsx
-((r.recept_categorieen ?? []) as unknown as { categorieen: ... }[])
-entry.recepten as unknown as ReceptKaart | null
-```
-
-Dit verbergt typefouten en maakt schema-wijzigingen onzichtbaar voor de compiler.
-
-**Oplossing:**
-1. Genereer typedefinities automatisch met Supabase CLI:
-   ```bash
-   npx supabase gen types typescript --project-id <id> > lib/database.types.ts
-   ```
-2. Vervang alle `as unknown as`-casts door de gegenereerde types
-3. Gebruik de types in queries voor betere typeveiligheid
+**Implementatie:**
+- `lib/database.types.ts` — Database type definities
+- `lib/supabase/client.ts` — Client-side Supabase client met types
+- `lib/supabase/server.ts` — Server-side Supabase client met types
+- `components/ReceptenLijst.tsx` — Gebruikt gegenereerde types voor joins
+- `components/ReceptFormulier.tsx` — Gebruikt gegenereerde types
 
 **Impact:**
 - Schema-wijzigingen direct zichtbaar als compile-fout
 - Minder runtime-fouten door verkeerde aannames
-- Betere onderhoudbaarheid
+- Betere onderhoudbaarheid en typeveiligheid
 
-**Acceptatiecriteria:**
-- [ ] `lib/database.types.ts` is gegenereerd via Supabase CLI
-- [ ] Alle `as unknown as`-casts zijn verwijderd
-- [ ] Build en tests slagen
+**Resterend:**
+- `database.types.ts` is handmatig gegenereerd (idealer via `npx supabase gen types typescript` voor toekomstige updates)
 
 ---
 
